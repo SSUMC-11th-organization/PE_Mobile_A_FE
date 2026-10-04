@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class StatItem extends StatelessWidget {
-  const StatItem({
-    super.key,
-    required this.label,
-    required this.value,
-  });
+  const StatItem({super.key, required this.label, required this.value});
 
   final String label;
   final String value;
@@ -16,10 +12,7 @@ class StatItem extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.primary),

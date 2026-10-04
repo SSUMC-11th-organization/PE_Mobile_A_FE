@@ -11,11 +11,17 @@ class ProfileStats extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: StatItem(label: '본 영화', value: '24')),
+        Expanded(
+          child: StatItem(label: '본 영화', value: '24'),
+        ),
         SizedBox(width: 12),
-        Expanded(child: StatItem(label: '평점', value: '18')),
+        Expanded(
+          child: StatItem(label: '평점', value: '18'),
+        ),
         SizedBox(width: 12),
-        Expanded(child: StatItem(label: '즐겨찾기', value: '7')),
+        Expanded(
+          child: StatItem(label: '즐겨찾기', value: '7'),
+        ),
       ],
     );
   }
