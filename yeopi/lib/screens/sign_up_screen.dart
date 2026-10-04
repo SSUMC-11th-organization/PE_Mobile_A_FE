@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 import '../utils/sign_up_validators.dart';
@@ -51,6 +52,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
+    // 홈에서 뒤로 가기로 회원가입이 다시 나오지 않도록 push가 아닌 go를 씁니다.
+    context.go('/home');
   }
 
   @override
