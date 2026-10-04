@@ -102,7 +102,15 @@ const movies = [
   ),
 ];
 
+const allGenresLabel = '전체';
+
 const movieGenres = ['드라마', 'SF', '애니메이션', '스릴러', '로맨스', '코미디', '판타지', '다큐멘터리'];
+
+/// [genre]가 '전체'이거나 목록에 없는 값이면 필터링하지 않는다.
+List<Movie> filterMoviesByGenre(List<Movie> source, String genre) {
+  if (genre == allGenresLabel) return source;
+  return source.where((movie) => movie.matchesAnyGenre({genre})).toList();
+}
 
 Movie? findMovieById(int? id) {
   for (final movie in movies) {
