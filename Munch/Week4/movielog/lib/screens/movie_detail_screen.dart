@@ -22,7 +22,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isFavorite = false;
   double? _myRating;
 
-  // URL로 바로 들어온 경우처럼 이전 화면이 없으면 홈으로 보낸다.
   void _goBack() => context.canPop() ? context.pop() : context.go('/home');
 
   void _showSnackBar(String message) {

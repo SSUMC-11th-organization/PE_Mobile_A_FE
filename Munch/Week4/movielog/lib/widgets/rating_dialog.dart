@@ -4,7 +4,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'movie_rating_input.dart';
 
-/// 확인을 누르면 선택한 별점을 반환한다. 0은 평점 삭제를 의미한다.
 class RatingDialog extends StatefulWidget {
   const RatingDialog({super.key, this.initialRating = 0});
 
@@ -17,7 +16,6 @@ class RatingDialog extends StatefulWidget {
 class _RatingDialogState extends State<RatingDialog> {
   late double _rating = widget.initialRating;
 
-  // RatingBar는 initialRating을 처음 한 번만 읽으므로, 초기화할 때 key를 바꿔 새로 그린다.
   int _resetCount = 0;
 
   bool get _canSubmit => _rating > 0 || widget.initialRating > 0;

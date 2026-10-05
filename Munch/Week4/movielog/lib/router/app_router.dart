@@ -50,7 +50,6 @@ class AppRouter {
           ),
         ],
       ),
-      // 상세 화면은 하단바 없이 전체 화면으로 띄우기 위해 Shell 밖에 둔다.
       GoRoute(
         path: '/movies/:movieId',
         builder: (context, state) => MovieDetailScreen(

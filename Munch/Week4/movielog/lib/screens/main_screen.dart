@@ -7,7 +7,6 @@ class MainScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   void _onDestinationSelected(int index) {
-    // 이미 선택된 탭을 다시 누르면 해당 탭의 첫 화면으로 돌아간다.
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,

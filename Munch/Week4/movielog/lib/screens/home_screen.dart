@@ -36,7 +36,6 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 32),
           _SectionHeader(
             title: '인기 영화',
-            // go('/movies')를 쓰면 영화 탭의 필터 상태가 초기화되므로 goBranch로 전환한다.
             onMore: () => StatefulNavigationShell.of(context).goBranch(1),
           ),
           const SizedBox(height: 16),

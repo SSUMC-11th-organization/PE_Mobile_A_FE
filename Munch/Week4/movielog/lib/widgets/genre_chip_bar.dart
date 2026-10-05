@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// 장르를 하나만 고르는 가로 Chip 목록.
 class GenreChipBar extends StatelessWidget {
   const GenreChipBar({
     super.key,

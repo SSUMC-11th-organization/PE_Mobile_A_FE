@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/router/app_router.dart';
 
-// 앱은 시작 화면에서 출발하므로 회원가입 화면으로 이동한 뒤 테스트한다.
 Future<void> pumpSignUpScreen(WidgetTester tester) async {
   await tester.pumpWidget(const MovieLogApp());
   AppRouter.router.go('/register');

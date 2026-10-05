@@ -138,7 +138,6 @@ class FavoriteGenres extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),
-              // 💡 withOpacity 대신 withValues(alpha: ...) 사용
               backgroundColor: AppColors.violet.withValues(alpha: 0.1),
               side: BorderSide.none,
               shape: RoundedRectangleBorder(
@@ -172,7 +171,6 @@ class StatItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: colors.surface,
-        // 💡 withOpacity 대신 withValues(alpha: ...) 사용
         border: Border.all(color: AppColors.violet.withValues(alpha: 0.2)),
         borderRadius: BorderRadius.circular(16),
       ),
