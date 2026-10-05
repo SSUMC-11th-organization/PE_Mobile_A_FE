@@ -2,150 +2,135 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/mock_movies.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text_styles.dart';
+import '../models/movie.dart';
+import '../services/fake_movie_service.dart';
+import '../services/genre_preference.dart';
 import '../widgets/common_app_bar.dart';
-import '../widgets/genre_filter_sheet.dart';
-import '../widgets/movie_card.dart';
+import '../widgets/genre_chip_bar.dart';
+import '../widgets/movie_grid.dart';
+import '../widgets/movie_list_empty.dart';
+import '../widgets/movie_list_error.dart';
+import '../widgets/movie_list_loading.dart';
 
-/// 선택한 장르는 `/movies?genres=드라마,SF`처럼 Query Parameter로 관리한다.
-class MovieListScreen extends StatelessWidget {
-  const MovieListScreen({super.key, required this.selectedGenres});
+class MovieListInitialData {
+  const MovieListInitialData({
+    required this.movies,
+    required this.selectedGenre,
+  });
 
-  final List<String> selectedGenres;
+  final List<Movie> movies;
+  final String selectedGenre;
+}
 
-  static List<String> parseGenres(String? query) {
-    if (query == null) return const [];
-    return query.split(',').where(movieGenres.contains).toList();
+class MovieListScreen extends StatefulWidget {
+  const MovieListScreen({
+    super.key,
+    this.movieService = const FakeMovieService(),
+    this.genrePreference,
+  });
+
+  final FakeMovieService movieService;
+  final GenrePreference? genrePreference;
+
+  @override
+  State<MovieListScreen> createState() => _MovieListScreenState();
+}
+
+class _MovieListScreenState extends State<MovieListScreen> {
+  static const _genres = [GenrePreference.allGenre, ...movieGenres];
+
+  late final GenrePreference _genrePreference =
+      widget.genrePreference ?? GenrePreference();
+
+  // Future는 build가 아니라 initState와 재시도 시점에만 만든다.
+  late Future<MovieListInitialData> _initialDataFuture;
+
+  // 로드 이후 Chip으로 바꾼 장르. null이면 저장소에서 읽은 값을 쓴다.
+  String? _selectedGenre;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialDataFuture = _loadInitialData();
   }
 
-  static String location(List<String> genres) {
-    if (genres.isEmpty) return '/movies';
-    return Uri(
-      path: '/movies',
-      queryParameters: {'genres': genres.join(',')},
-    ).toString();
+  Future<MovieListInitialData> _loadInitialData() async {
+    try {
+      // 영화 목록과 저장된 장르는 서로 의존하지 않으므로 함께 시작한다.
+      final results = await Future.wait([
+        widget.movieService.fetchMovies(),
+        _genrePreference.read(),
+      ]);
+
+      return MovieListInitialData(
+        movies: results[0] as List<Movie>,
+        selectedGenre: results[1] as String,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('영화 목록 로드 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
-  Future<void> _openFilterSheet(BuildContext context) async {
-    final result = await showModalBottomSheet<List<String>>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.5,
-          minChildSize: 0.3,
-          maxChildSize: 0.9,
-          builder: (context, scrollController) {
-            return GenreFilterSheet(
-              initialGenres: selectedGenres,
-              scrollController: scrollController,
-            );
-          },
-        );
-      },
-    );
+  void _retry() {
+    setState(() {
+      _selectedGenre = null;
+      _initialDataFuture = _loadInitialData();
+    });
+  }
 
-    if (result == null || !context.mounted) return;
-    context.go(location(result));
+  Future<void> _selectGenre(String genre) async {
+    setState(() => _selectedGenre = genre);
+    await _genrePreference.save(genre);
+  }
+
+  List<Movie> _filter(List<Movie> movies, String genre) {
+    if (genre == GenrePreference.allGenre) return movies;
+    return movies.where((movie) => movie.genres.contains(genre)).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = selectedGenres.isEmpty
-        ? movies
-        : movies
-              .where((movie) => movie.genres.any(selectedGenres.contains))
-              .toList();
-
     return Scaffold(
       appBar: CommonAppBar(
         title: '영화',
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
-          IconButton(
-            onPressed: () => _openFilterSheet(context),
-            icon: Badge(
-              isLabelVisible: selectedGenres.isNotEmpty,
-              label: Text('${selectedGenres.length}'),
-              child: const Icon(Icons.filter_list),
-            ),
-          ),
-        ],
+        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
       ),
-      body: Column(
-        children: [
-          if (selectedGenres.isNotEmpty)
-            _SelectedGenreBar(
-              genres: selectedGenres,
-              onRemoved: (genre) => context.go(
-                location(selectedGenres.where((g) => g != genre).toList()),
+      body: FutureBuilder<MovieListInitialData>(
+        future: _initialDataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const MovieListLoading();
+          }
+
+          if (snapshot.hasError) {
+            return MovieListError(onRetry: _retry);
+          }
+
+          final data = snapshot.data;
+          if (data == null) return const MovieListEmpty();
+
+          final selectedGenre = _selectedGenre ?? data.selectedGenre;
+          final filtered = _filter(data.movies, selectedGenre);
+
+          return Column(
+            children: [
+              GenreChipBar(
+                genres: _genres,
+                selectedGenre: selectedGenre,
+                onSelected: _selectGenre,
               ),
-            ),
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      '선택한 장르의 영화가 없어요.',
-                      style: AppTextStyles.bodyMedium,
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    itemCount: filtered.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 20,
-                          childAspectRatio: 0.55,
-                        ),
-                    itemBuilder: (context, index) {
-                      final movie = filtered[index];
-                      return MovieCard(
-                        movie: movie,
-                        onTap: () => context.push('/movies/${movie.id}'),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SelectedGenreBar extends StatelessWidget {
-  const _SelectedGenreBar({required this.genres, required this.onRemoved});
-
-  final List<String> genres;
-  final ValueChanged<String> onRemoved;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: genres.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final genre = genres[index];
-          return InputChip(
-            label: Text(genre),
-            labelStyle: const TextStyle(
-              color: AppColors.violet,
-              fontWeight: FontWeight.w600,
-            ),
-            backgroundColor: AppColors.violet.withValues(alpha: 0.1),
-            side: BorderSide.none,
-            shape: const StadiumBorder(),
-            onDeleted: () => onRemoved(genre),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const MovieListEmpty()
+                    : MovieGrid(
+                        movies: filtered,
+                        onMovieTap: (movie) =>
+                            context.push('/movies/${movie.id}'),
+                      ),
+              ),
+            ],
           );
         },
       ),

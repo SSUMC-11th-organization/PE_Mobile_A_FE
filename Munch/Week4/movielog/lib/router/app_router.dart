@@ -36,11 +36,7 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/movies',
-                builder: (context, state) => MovieListScreen(
-                  selectedGenres: MovieListScreen.parseGenres(
-                    state.uri.queryParameters['genres'],
-                  ),
-                ),
+                builder: (context, state) => const MovieListScreen(),
               ),
             ],
           ),
