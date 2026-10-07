@@ -5,15 +5,12 @@ import 'package:movielog/main.dart';
 import 'package:movielog/models/movie.dart';
 import 'package:movielog/router/app_router.dart';
 import 'package:movielog/widgets/hero_banner.dart';
-import 'package:movielog/widgets/movie_card.dart';
 
-void useTallScreen(WidgetTester tester) {
-  tester.view.physicalSize = const Size(800, 2600);
-  tester.view.devicePixelRatio = 1.0;
-  addTearDown(tester.view.reset);
-}
+import 'test_helpers.dart';
 
 void main() {
+  setUp(useInMemoryPreferences);
+
   testWidgets('시작하기를 누르면 회원가입 화면으로 이동한다', (tester) async {
     useTallScreen(tester);
     await tester.pumpWidget(const MovieLogApp());
@@ -41,43 +38,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HeroBanner), findsOneWidget);
-  });
-
-  testWidgets('장르 필터 BottomSheet는 확인을 눌러야 목록에 적용된다', (tester) async {
-    useTallScreen(tester);
-    await tester.pumpWidget(const MovieLogApp());
-    AppRouter.router.go('/movies');
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MovieCard), findsNWidgets(movies.length));
-
-    await tester.tap(find.byIcon(Icons.filter_list));
-    await tester.pumpAndSettle();
-    expect(find.text('장르 필터'), findsOneWidget);
-
-    await tester.tap(find.text('드라마'));
-    await tester.pumpAndSettle();
-    // 확인 전에는 목록이 바뀌지 않는다.
-    expect(find.byType(MovieCard), findsNWidgets(movies.length));
-
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
-    expect(find.text('장르 필터'), findsNothing);
-    expect(
-      find.byType(MovieCard),
-      findsNWidgets(
-        movies.where((movie) => movie.matchesAnyGenre({'드라마'})).length,
-      ),
-    );
-
-    // 선택을 모두 해제하고 확인하면 전체 목록이 다시 보인다.
-    await tester.tap(find.byIcon(Icons.filter_list));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('드라마'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
-    expect(find.byType(MovieCard), findsNWidgets(movies.length));
   });
 
   testWidgets('상세에서 평점 Dialog와 즐겨찾기 Snackbar가 동작한다', (tester) async {
