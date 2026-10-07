@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
+import 'router/app_router.dart';
 import 'theme/app_theme.dart';
-// import 'screens/profile_screen.dart';
-// import 'screens/start_screen.dart';
-import 'screens/signup_screen.dart';
-// import 'screens/rating_screen.dart';
-
 
 void main() => runApp(const MovieLogApp());
 
@@ -13,13 +9,11 @@ class MovieLogApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
+      title: 'MovieLog',
       theme: AppTheme.light,
-      //home: const ProfileScreen(),
-      // home: const StartScreen(),
-      home: const SignUpScreen(),
-      // home: const RatingScreen(),
+      routerConfig: AppRouter.router,
     );
   }
 }

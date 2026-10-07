@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import 'package:go_router/go_router.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -40,7 +41,7 @@ class StartScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {}, // 1주차는 모양만
+                  onPressed: () => context.go('/register'), // 1주차는 모양만
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.deepViolet,
                     foregroundColor: AppColors.white,

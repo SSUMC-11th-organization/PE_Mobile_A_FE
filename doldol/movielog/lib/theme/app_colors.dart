@@ -14,4 +14,8 @@ abstract final class AppColors {
   static const fieldBg = Color(0xFFEFEDE8);       // 입력창 배경
   static const errorBg = Color(0xFFFFDAD6);       // 오류 입력창 배경
   static const disabledViolet = Color(0xFFCDC2DB); // 비활성 버튼
+  static const starEmpty = Color(0xFFD9D4E4);   // 빈 별
+  static const chipGray = Color(0xFFEAE6EF);    // 상세 태그 배경
+  static const scrim = Color(0xCC000000);       // 이미지 위 어두운 막
+  static const clear = Color(0x00000000);       // 투명
 }

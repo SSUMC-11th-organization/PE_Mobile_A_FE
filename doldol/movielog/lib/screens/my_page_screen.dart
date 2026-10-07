@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/favorite_genres.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/stat_item.dart';
-import '../widgets/favorite_genres.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class MyPageScreen extends StatelessWidget {
+  const MyPageScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

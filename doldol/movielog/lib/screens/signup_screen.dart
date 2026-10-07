@@ -6,6 +6,7 @@ import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_text_form_field.dart';
 import '../widgets/signup_button.dart';
 import '../widgets/terms_checkbox.dart';
+import 'package:go_router/go_router.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -48,6 +49,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('회원가입이 완료되었어요!')),
     );
+    context.go('/home');
   }
 
   @override
@@ -230,7 +232,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
               : CommonAppBar(
                   title: '회원가입',
                   centerTitle: true,
-                  onBack: () => Navigator.maybePop(context),
                   titleStyle: AppTextStyles.titleMedium.copyWith(
                     color: AppColors.violet,
                   ),
