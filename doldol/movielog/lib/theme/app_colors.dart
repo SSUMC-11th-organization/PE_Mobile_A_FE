@@ -10,4 +10,8 @@ abstract final class AppColors {
   static const lavender = Color(0xFFE8DEF8);     // 장르 Chip 배경
   static const cardBg = Color(0xFFF5F3EF);       // 통계 카드 배경
   static const cardBorder = Color(0xFFE7E0EC);   // 통계 카드 테두리
+  static const error = Color(0xFFB3261E);       // Validation 오류
+  static const fieldBg = Color(0xFFEFEDE8);       // 입력창 배경
+  static const errorBg = Color(0xFFFFDAD6);       // 오류 입력창 배경
+  static const disabledViolet = Color(0xFFCDC2DB); // 비활성 버튼
 }
