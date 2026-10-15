@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import 'movie_card.dart';
 
 class MovieGrid extends StatelessWidget {
-  const MovieGrid({super.key, required this.movies, required this.onMovieTap});
+  const MovieGrid({
+    super.key,
+    required this.movies,
+    required this.onMovieTap,
+    this.genreNames = const {},
+  });
 
   static const padding = EdgeInsets.fromLTRB(24, 8, 24, 24);
   static const gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
@@ -14,8 +19,9 @@ class MovieGrid extends StatelessWidget {
     childAspectRatio: 0.55,
   );
 
-  final List<Movie> movies;
-  final ValueChanged<Movie> onMovieTap;
+  final List<TmdbMovieDto> movies;
+  final ValueChanged<TmdbMovieDto> onMovieTap;
+  final Map<int, String> genreNames;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +32,12 @@ class MovieGrid extends StatelessWidget {
       gridDelegate: gridDelegate,
       itemBuilder: (context, index) {
         final movie = movies[index];
-        return MovieCard(movie: movie, onTap: () => onMovieTap(movie));
+        return MovieCard(
+          key: ValueKey(movie.id),
+          movie: movie,
+          genreNames: genreNames,
+          onTap: () => onMovieTap(movie),
+        );
       },
     );
   }

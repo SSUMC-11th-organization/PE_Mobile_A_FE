@@ -1,41 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/models/movie_sort.dart';
-import 'package:movielog/screens/movie_list_screen.dart';
-import 'package:movielog/services/fake_movie_service.dart';
-import 'package:movielog/services/genre_preference.dart';
-import 'package:movielog/services/sort_preference.dart';
+import 'package:movielog/movie_log_app.dart';
+import 'package:movielog/router/app_router.dart';
 import 'package:movielog/widgets/movie_card.dart';
-import 'package:movielog/widgets/movie_list_error.dart';
-import 'package:movielog/widgets/movie_list_loading.dart';
-import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-Future<void> pumpScreen(
-  WidgetTester tester, {
-  MovieLoadMode mode = MovieLoadMode.success,
-}) async {
-  await tester.pumpWidget(
-    MaterialApp(
-      home: MovieListScreen(movieService: FakeMovieService(mode: mode)),
-    ),
-  );
-}
+import '../fakes/fake_tmdb_movie_service.dart';
 
-Future<void> finishLoading(WidgetTester tester) async {
-  await tester.pump(FakeMovieService.loadDelay);
+Future<void> pumpMovieList(
+  WidgetTester tester,
+  FakeTmdbMovieService service,
+) async {
+  await tester.pumpWidget(MovieLogApp(movieService: service));
+  AppRouter.router.go('/movies');
   await tester.pumpAndSettle();
 }
 
-List<String> visibleTitles(WidgetTester tester) => tester
-    .widgetList<MovieCard>(find.byType(MovieCard))
-    .map((card) => card.movie.title)
-    .toList();
+ChoiceChip chip(WidgetTester tester, String label) {
+  return tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
+}
 
 void main() {
   setUp(() {
-    SharedPreferencesAsyncPlatform.instance =
-        InMemorySharedPreferencesAsync.empty();
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
     view.physicalSize = const Size(1170, 2532);
@@ -49,109 +36,74 @@ void main() {
     view.resetDevicePixelRatio();
   });
 
-  testWidgets('Loading이 800ms 이상 보인 뒤 Success로 바뀐다', (tester) async {
-    await pumpScreen(tester);
-
-    expect(find.byType(MovieListLoading), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(find.byType(MovieListLoading), findsOneWidget);
-
-    await finishLoading(tester);
-    expect(find.byType(MovieListLoading), findsNothing);
-    expect(find.byType(MovieCard), findsWidgets);
-  });
-
-  testWidgets('empty 모드에서는 Empty 화면을 보여준다', (tester) async {
-    await pumpScreen(tester, mode: MovieLoadMode.empty);
-    await finishLoading(tester);
-
-    expect(find.text('조건에 맞는 영화가 없습니다.'), findsOneWidget);
-  });
-
-  testWidgets('failure 모드에서는 Exception 없이 Error 화면을 보여주고 재시도한다', (
+  testWidgets('Genre API로 Chip을 만들고 장르를 누르면 with_genres로 다시 요청한다', (
     tester,
   ) async {
-    await pumpScreen(tester, mode: MovieLoadMode.failure);
-    await finishLoading(tester);
+    final service = FakeTmdbMovieService();
+    await pumpMovieList(tester, service);
 
-    expect(find.text(MovieListError.defaultMessage), findsOneWidget);
-    expect(find.textContaining('Exception'), findsNothing);
+    expect(find.text('전체'), findsOneWidget);
+    expect(find.text('드라마'), findsOneWidget);
+    expect(find.byType(MovieCard), findsWidgets);
 
+    service.discoverCalls.clear();
+    await tester.tap(find.text('드라마'));
+    await tester.pumpAndSettle();
+
+    expect(service.discoverCalls.first, isDiscoverCall(1, [18]));
+    expect(chip(tester, '드라마').selected, isTrue);
+  });
+
+  testWidgets('Discover 요청 중에는 장르 Chip이 비활성화된다', (tester) async {
+    final service = FakeTmdbMovieService();
+    await pumpMovieList(tester, service);
+
+    service.discoverGate = Completer<void>();
+    await tester.tap(find.text('액션'));
+    await tester.pump();
+
+    expect(chip(tester, '드라마').onSelected, isNull);
+
+    service.discoverGate!.complete();
+    await tester.pumpAndSettle();
+    expect(chip(tester, '드라마').onSelected, isNotNull);
+  });
+
+  testWidgets('성공 목록이 있는 상태에서 실패하면 목록을 유지하고 재시도 Dialog를 띄운다', (tester) async {
+    final service = FakeTmdbMovieService();
+    await pumpMovieList(tester, service);
+
+    service.failDiscover = true;
+    await tester.tap(find.text('SF'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('영화를 불러오지 못했어요'), findsOneWidget);
+    expect(find.byType(MovieCard), findsWidgets);
+
+    service
+      ..failDiscover = false
+      ..discoverCalls.clear();
     await tester.tap(find.text('다시 시도'));
-    await tester.pump();
-    expect(find.byType(MovieListLoading), findsOneWidget);
-
-    await finishLoading(tester);
-    expect(find.text(MovieListError.defaultMessage), findsOneWidget);
-  });
-
-  testWidgets('응답이 loadTimeout보다 늦으면 Timeout 안내를 보여준다', (tester) async {
-    await pumpScreen(tester, mode: MovieLoadMode.slow);
-
-    await tester.pump(const Duration(seconds: 4));
-    expect(find.byType(MovieListLoading), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpAndSettle();
-    expect(find.text(MovieListError.timeoutMessage), findsOneWidget);
-
-    await tester.pump(FakeMovieService.slowDelay);
-  });
-
-  testWidgets('장르 Chip을 누르면 목록이 바뀌고 다시 열면 복원된다', (tester) async {
-    await pumpScreen(tester);
-    await finishLoading(tester);
-
-    await tester.tap(find.widgetWithText(ChoiceChip, '로맨스'));
     await tester.pumpAndSettle();
 
-    expect(visibleTitles(tester), ['별빛 아래 우리']);
-    expect(await GenrePreference().read(), '로맨스');
-
-    await tester.pumpWidget(const SizedBox());
-    await pumpScreen(tester);
-    await finishLoading(tester);
-
-    expect(visibleTitles(tester), ['별빛 아래 우리']);
+    expect(find.text('영화를 불러오지 못했어요'), findsNothing);
+    expect(service.discoverCalls.first, isDiscoverCall(1, [878]));
   });
 
-  testWidgets('정렬을 바꾸면 순서가 바뀌고 다시 열면 복원된다', (tester) async {
-    await pumpScreen(tester);
-    await finishLoading(tester);
+  testWidgets('BottomSheet에서 여러 장르를 고르면 함께 요청한다', (tester) async {
+    final service = FakeTmdbMovieService();
+    await pumpMovieList(tester, service);
 
-    await tester.tap(find.byTooltip('정렬'));
+    await tester.tap(find.byTooltip('장르 필터'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(MovieSort.rating.label));
+    await tester.tap(find.widgetWithText(CheckboxListTile, '액션'));
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'SF'));
+    service.discoverCalls.clear();
+    await tester.tap(find.widgetWithText(ElevatedButton, '확인'));
     await tester.pumpAndSettle();
 
-    expect(visibleTitles(tester).first, '기억의 숲');
-    expect(await SortPreference().read(), MovieSort.rating);
-
-    await tester.pumpWidget(const SizedBox());
-    await pumpScreen(tester);
-    await finishLoading(tester);
-
-    expect(visibleTitles(tester).first, '기억의 숲');
-  });
-
-  testWidgets('당겨서 새로고침하면 목록을 유지한 채 다시 불러온다', (tester) async {
-    await pumpScreen(tester);
-    await finishLoading(tester);
-
-    await tester.fling(
-      find.byType(MovieCard).first,
-      const Offset(0, 400),
-      1000,
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.byType(RefreshProgressIndicator), findsOneWidget);
-    expect(find.byType(MovieListLoading), findsNothing);
-    expect(find.byType(MovieCard), findsWidgets);
-
-    await finishLoading(tester);
-    expect(find.byType(RefreshProgressIndicator), findsNothing);
-    expect(find.byType(MovieCard), findsWidgets);
+    expect(service.discoverCalls.first, isDiscoverCall(1, [28, 878]));
+    expect(chip(tester, '액션').selected, isTrue);
+    expect(chip(tester, 'SF').selected, isTrue);
   });
 }

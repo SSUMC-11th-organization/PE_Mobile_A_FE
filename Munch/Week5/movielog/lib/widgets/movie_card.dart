@@ -1,17 +1,42 @@
 import 'package:flutter/material.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import 'tmdb_poster_image.dart';
+
+/// `release_date`가 없거나 형식이 맞지 않으면 null을 반환해 연도를 표시하지 않는다.
+String? releaseYearOf(String? releaseDate) {
+  if (releaseDate == null || releaseDate.length < 4) return null;
+  final year = releaseDate.substring(0, 4);
+  return int.tryParse(year) == null ? null : year;
+}
 
 class MovieCard extends StatelessWidget {
-  const MovieCard({super.key, required this.movie, required this.onTap});
+  const MovieCard({
+    super.key,
+    required this.movie,
+    required this.onTap,
+    this.genreNames = const {},
+  });
 
-  final Movie movie;
+  final TmdbMovieDto movie;
   final VoidCallback onTap;
+  final Map<int, String> genreNames;
+
+  String get _subtitle {
+    final year = releaseYearOf(movie.releaseDate);
+    final genre = movie.genreIds
+        .map((id) => genreNames[id])
+        .whereType<String>()
+        .firstOrNull;
+    return [?year, ?genre].join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = _subtitle;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -24,11 +49,11 @@ class MovieCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(movie.posterAsset, fit: BoxFit.cover),
+                  TmdbPosterImage(posterPath: movie.posterPath),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: _RatingBadge(rating: movie.rating),
+                    child: RatingBadge(rating: movie.voteAverage),
                   ),
                 ],
               ),
@@ -43,7 +68,7 @@ class MovieCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${movie.year} · ${movie.genres.first}',
+            subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.bodyMedium.copyWith(fontSize: 14, height: 1.3),
@@ -54,8 +79,8 @@ class MovieCard extends StatelessWidget {
   }
 }
 
-class _RatingBadge extends StatelessWidget {
-  const _RatingBadge({required this.rating});
+class RatingBadge extends StatelessWidget {
+  const RatingBadge({super.key, required this.rating});
 
   final double rating;
 

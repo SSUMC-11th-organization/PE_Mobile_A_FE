@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/router/app_router.dart';
 
+import 'fakes/fake_tmdb_movie_service.dart';
+
 Future<void> pumpSignUpScreen(WidgetTester tester) async {
-  await tester.pumpWidget(const MovieLogApp());
+  await tester.pumpWidget(MovieLogApp(movieService: FakeTmdbMovieService()));
   AppRouter.router.go('/register');
   await tester.pumpAndSettle();
 }

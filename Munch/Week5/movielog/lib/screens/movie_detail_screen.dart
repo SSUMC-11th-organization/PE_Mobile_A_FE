@@ -2,17 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 
-import '../data/mock_movies.dart';
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/movie_card.dart';
 import '../widgets/rating_dialog.dart';
+import '../widgets/tmdb_poster_image.dart';
 
 class MovieDetailScreen extends StatefulWidget {
-  const MovieDetailScreen({super.key, required this.movieId});
+  const MovieDetailScreen({
+    super.key,
+    required this.movieId,
+    required this.movie,
+    this.genreNames = const {},
+  });
 
+  /// TMDB 영화 id. 이후 평점 API의 movieId로 그대로 전달한다.
   final int? movieId;
+  final TmdbMovieDto? movie;
+  final Map<int, String> genreNames;
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -37,10 +46,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     _showSnackBar(_isFavorite ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 삭제했어요.');
   }
 
-  Future<void> _openRatingDialog() async {
+  Future<void> _openRatingDialog(int movieId) async {
     final rating = await showDialog<double>(
       context: context,
-      builder: (context) => RatingDialog(initialRating: _myRating ?? 0),
+      builder: (context) =>
+          RatingDialog(movieId: movieId, initialRating: _myRating ?? 0),
     );
     if (rating == null || !mounted) return;
 
@@ -52,9 +62,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final movie = findMovieById(widget.movieId);
+    final movie = widget.movie;
 
-    if (movie == null) {
+    if (movie == null || movie.id != widget.movieId) {
       return Scaffold(
         appBar: CommonAppBar(title: '영화 상세', onBack: _goBack),
         body: const Center(
@@ -76,38 +86,46 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         children: [
           AspectRatio(
             aspectRatio: 2 / 3,
-            child: Image.asset(movie.posterAsset, fit: BoxFit.cover),
+            child: TmdbPosterImage(posterPath: movie.posterPath, size: 'w780'),
           ),
-          _MovieInfoSection(movie: movie, myRating: _myRating),
+          _MovieInfoSection(
+            movie: movie,
+            genreNames: widget.genreNames,
+            myRating: _myRating,
+          ),
           const Divider(height: 1),
-          _SynopsisSection(synopsis: movie.synopsis),
+          _SynopsisSection(overview: movie.overview),
         ],
       ),
       bottomNavigationBar: _DetailActionBar(
         isFavorite: _isFavorite,
         hasRated: _myRating != null,
         onFavoritePressed: _toggleFavorite,
-        onRatePressed: _openRatingDialog,
+        onRatePressed: () => _openRatingDialog(movie.id),
       ),
     );
   }
 }
 
 class _MovieInfoSection extends StatelessWidget {
-  const _MovieInfoSection({required this.movie, required this.myRating});
+  const _MovieInfoSection({
+    required this.movie,
+    required this.genreNames,
+    required this.myRating,
+  });
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+  final Map<int, String> genreNames;
   final double? myRating;
-
-  String _formatCount(int count) {
-    return count.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
+    final year = releaseYearOf(movie.releaseDate);
+    final genres = movie.genreIds
+        .map((id) => genreNames[id])
+        .whereType<String>()
+        .toList();
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -120,16 +138,19 @@ class _MovieInfoSection extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            '${movie.year} • ${movie.genres.join('/')} • ${movie.runtime}분',
-            style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
-          ),
+          if (year != null || genres.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              [?year, if (genres.isNotEmpty) genres.join('/')].join(' • '),
+              style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
+              // TMDB 평점은 10점 만점이라 별 5개에 맞춰 절반으로 표시한다.
               RatingBarIndicator(
-                rating: movie.rating,
+                rating: movie.voteAverage / 2,
                 itemCount: 5,
                 itemSize: 22,
                 itemBuilder: (context, index) {
@@ -138,13 +159,8 @@ class _MovieInfoSection extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                movie.rating.toStringAsFixed(1),
+                '${movie.voteAverage.toStringAsFixed(1)} / 10',
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 16),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '(${_formatCount(movie.ratingCount)})',
-                style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
               ),
             ],
           ),
@@ -155,23 +171,25 @@ class _MovieInfoSection extends StatelessWidget {
               style: AppTextStyles.bodySmall.copyWith(color: AppColors.violet),
             ),
           ],
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: movie.tags.map((tag) {
-              return Chip(
-                label: Text(tag),
-                labelStyle: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.black,
-                ),
-                backgroundColor: Colors.black.withValues(alpha: 0.06),
-                side: BorderSide.none,
-                shape: const StadiumBorder(),
-              );
-            }).toList(),
-          ),
+          if (genres.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: genres.map((genre) {
+                return Chip(
+                  label: Text(genre),
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.black,
+                  ),
+                  backgroundColor: Colors.black.withValues(alpha: 0.06),
+                  side: BorderSide.none,
+                  shape: const StadiumBorder(),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -179,12 +197,14 @@ class _MovieInfoSection extends StatelessWidget {
 }
 
 class _SynopsisSection extends StatelessWidget {
-  const _SynopsisSection({required this.synopsis});
+  const _SynopsisSection({required this.overview});
 
-  final String synopsis;
+  final String overview;
 
   @override
   Widget build(BuildContext context) {
+    final hasOverview = overview.trim().isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -192,13 +212,21 @@ class _SynopsisSection extends StatelessWidget {
         children: [
           const Text('시놉시스', style: AppTextStyles.titleMedium),
           const SizedBox(height: 12),
-          Text(
-            synopsis,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.black,
-              height: 1.7,
+          if (hasOverview)
+            Text(
+              overview,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.black,
+                height: 1.7,
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text('줄거리 정보가 없어요.', style: AppTextStyles.bodyMedium),
+              ),
             ),
-          ),
         ],
       ),
     );
