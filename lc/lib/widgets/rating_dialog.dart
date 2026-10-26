@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../models/rating_submission.dart';
 import '../theme/app_colors.dart';
 import 'movie_rating_input.dart';
 
 class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, this.initialRating = 0});
+  const RatingDialog({
+    super.key,
+    required this.movieId,
+    this.initialRating = 0,
+  });
 
+  /// 평점을 남길 영화의 TMDB id. 확인을 누르면 점수와 함께 돌려준다.
+  final int movieId;
   final double initialRating;
 
   @override
@@ -47,7 +54,12 @@ class _RatingDialogState extends State<RatingDialog> {
               child: ElevatedButton(
                 onPressed: _rating == 0
                     ? null
-                    : () => Navigator.of(context).pop(_rating),
+                    : () => Navigator.of(context).pop(
+                        RatingSubmission(
+                          movieId: widget.movieId,
+                          score: _rating,
+                        ),
+                      ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.violet,
                   foregroundColor: Colors.white,

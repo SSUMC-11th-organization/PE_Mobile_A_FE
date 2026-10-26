@@ -1,20 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
+import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
+import '../utils/tmdb_movie_format.dart';
+import 'tmdb_poster_image.dart';
 
 class HeroBanner extends StatelessWidget {
-  const HeroBanner({super.key, required this.movie});
+  const HeroBanner({
+    super.key,
+    required this.movie,
+    this.genreNames = const [],
+  });
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+  final List<String> genreNames;
 
   static const _shadows = [
     Shadow(color: Color(0x0F000000), offset: Offset(0, 2), blurRadius: 1),
     Shadow(color: Color(0x12000000), offset: Offset(0, 4), blurRadius: 1.5),
   ];
 
-  void _openDetail(BuildContext context) => context.push('/movies/${movie.id}');
+  String get _subtitle {
+    final year = movie.releaseYear;
+    final parts = [...genreNames.take(2), if (year != null) '$year'];
+    return parts.isEmpty ? '★ ${movie.ratingLabel}' : parts.join(' · ');
+  }
+
+  void _openDetail(BuildContext context) => context.push(
+    '/movies/${movie.id}',
+    extra: MovieDetailArgs(movie: movie, genreNames: genreNames),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +45,7 @@ class HeroBanner extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              ColoredBox(
-                color: AppColors.surfaceVariant,
-                child: Image.asset(movie.posterAsset, fit: BoxFit.cover),
-              ),
+              TmdbPosterImage(posterPath: movie.posterPath),
               const ColoredBox(color: Color(0xB3000000)),
               Positioned(
                 left: 0,
@@ -69,6 +83,8 @@ class HeroBanner extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         movie.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w500,
@@ -81,7 +97,7 @@ class HeroBanner extends StatelessWidget {
                       Opacity(
                         opacity: 0.9,
                         child: Text(
-                          '${movie.tags.take(2).join(' · ')} · ${movie.runtimeMinutes}분',
+                          _subtitle,
                           style: const TextStyle(
                             fontSize: 16,
                             height: 24 / 16,
