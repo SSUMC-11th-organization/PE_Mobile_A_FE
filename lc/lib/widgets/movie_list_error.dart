@@ -1,0 +1,61 @@
+import 'package:flutter/material.dart';
+
+import '../theme/app_colors.dart';
+
+/// 내부 Exception 내용은 보여주지 않고, 사용자가 할 수 있는 행동(다시 시도)만 안내한다.
+class MovieListError extends StatelessWidget {
+  const MovieListError({
+    super.key,
+    required this.onRetry,
+    this.message,
+    this.description = '네트워크 상태를 확인하고 다시 시도해 주세요.',
+  });
+
+  final VoidCallback onRetry;
+  final String? message;
+
+  /// 제목 아래의 보조 안내. 실패 원인이 네트워크가 아닌 화면에서는 바꿔서 쓴다.
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          Text(
+            message ?? '영화를 불러오지 못했습니다.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              height: 24 / 16,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 20 / 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: onRetry,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.violet,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+}
