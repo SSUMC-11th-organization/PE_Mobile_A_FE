@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../data/movie_data.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
-import 'movie_poster.dart';
+import 'tmdb_poster_image.dart';
 
 class HomeHeroCard extends StatelessWidget {
   const HomeHeroCard({super.key, required this.movie});
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+
+  /// 출시 연도가 없으면 연도는 빼고 평점만 표시한다
+  String get _subtitle {
+    final parts = [
+      movie.releaseYear,
+      '★ ${movie.voteAverage.toStringAsFixed(1)}',
+    ].whereType<String>();
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +28,7 @@ class HomeHeroCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            MoviePoster(asset: movie.posterAsset),
+            TmdbPosterImage(posterPath: movie.posterPath),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -56,13 +65,15 @@ class HomeHeroCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     movie.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.titleLarge.copyWith(
                       color: AppColors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${movie.year} · ${movie.genre} · ${movie.runtime}분',
+                    _subtitle,
                     style: AppTextStyles.bodySmall.copyWith(
                       color: Colors.white70,
                     ),
@@ -72,7 +83,8 @@ class HomeHeroCard extends StatelessWidget {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: () => context.push('/movies/${movie.id}'),
+                      onPressed: () =>
+                          context.push('/movies/${movie.id}', extra: movie),
                       icon: const Icon(Icons.info_outline, size: 18),
                       label: const Text('상세보기'),
                       style: ElevatedButton.styleFrom(

@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../data/movie_data.dart';
+import 'package:provider/provider.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/movie_list_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/genre_chip_list.dart';
-import '../widgets/movie_card.dart';
+import '../widgets/movie_grid.dart';
+import '../widgets/movie_list_empty.dart';
+import '../widgets/movie_list_error.dart';
+import '../widgets/movie_list_loading.dart';
 
 class MovieListScreen extends StatelessWidget {
-  const MovieListScreen({super.key, this.genre});
-
-  final String? genre;
+  const MovieListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final selected = genre ?? '전체';
-    final filtered = selected == '전체'
-        ? movies
-        : movies.where((movie) => movie.genre == selected).toList();
-
     return Scaffold(
       appBar: CommonAppBar(
         title: '영화',
@@ -32,52 +29,60 @@ class MovieListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
-          GenreChipList(
-            selected: selected,
-            onSelected: (value) {
-              final location = value == '전체'
-                  ? '/movies'
-                  : Uri(
-                      path: '/movies',
-                      queryParameters: {'genre': value},
-                    ).toString();
-              context.go(location);
-            },
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      '해당 장르의 영화가 없어요.',
-                      style: AppTextStyles.bodySmall,
+      // ViewModel 상태가 바뀔 때 이 영역만 다시 그린다
+      body: Consumer<MovieListViewModel>(
+        builder: (context, viewModel, child) {
+          return Column(
+            children: [
+              const SizedBox(height: 8),
+              GenreChipList(
+                genres: viewModel.genres,
+                selectedGenreId: viewModel.selectedGenreId,
+                // 요청 중에는 장르를 바꿀 수 없다
+                enabled: !viewModel.isLoading,
+                onSelected: (genreId) =>
+                    context.read<MovieListViewModel>().selectGenre(genreId),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: switch (viewModel.status) {
+                  MovieListLoadStatus.idle ||
+                  MovieListLoadStatus.loading =>
+                    const MovieListLoading(),
+                  MovieListLoadStatus.error => MovieListError(
+                      message: viewModel.message,
+                      // 지금 선택된 장르 그대로 처음부터 다시 요청
+                      onRetry: () => context.read<MovieListViewModel>().retry(),
                     ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    itemCount: filtered.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.62,
-                    ),
-                    itemBuilder: (context, index) {
-                      final movie = filtered[index];
-                      return MovieCard(
-                        movie: movie,
-                        showRatingBadge: true,
-                        subtitle: '${movie.year} · ${movie.genre}',
-                      );
-                    },
-                  ),
-          ),
-        ],
+                  MovieListLoadStatus.empty => const MovieListEmpty(),
+                  MovieListLoadStatus.success =>
+                    _MovieListSuccess(movies: viewModel.movies),
+                },
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _MovieListSuccess extends StatelessWidget {
+  const _MovieListSuccess({required this.movies});
+
+  final List<TmdbMovieDto> movies;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text('영화 ${movies.length}편', style: AppTextStyles.bodySmall),
+        ),
+        Expanded(child: MovieGrid(movies: movies)),
+      ],
     );
   }
 }
