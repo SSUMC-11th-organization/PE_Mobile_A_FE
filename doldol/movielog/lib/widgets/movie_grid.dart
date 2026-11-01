@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../data/movie_data.dart';
-import 'movie_card.dart';
+import '../data/models/tmdb_movie_dto.dart';
+import 'tmdb_movie_card.dart';
 
 class MovieGrid extends StatelessWidget {
   const MovieGrid({super.key, required this.movies});
 
-  final List<Movie> movies;
+  final List<TmdbMovieDto> movies;
 
   @override
   Widget build(BuildContext context) {
@@ -20,10 +20,11 @@ class MovieGrid extends StatelessWidget {
       ),
       itemBuilder: (context, index) {
         final movie = movies[index];
-        return MovieCard(
+        return TmdbMovieCard(
           movie: movie,
           showRatingBadge: true,
-          subtitle: '${movie.year} · ${movie.genre}',
+          // 출시 연도가 없으면 표시하지 않는다
+          subtitle: movie.releaseYear ?? '',
         );
       },
     );
