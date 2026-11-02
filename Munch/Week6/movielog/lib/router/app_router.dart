@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../data/models/tmdb_movie_dto.dart';
+import '../data/services/member_check_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../screens/home_screen.dart';
 import '../screens/main_screen.dart';
@@ -12,6 +13,7 @@ import '../screens/sign_up_screen.dart';
 import '../screens/start_screen.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
+import '../view_models/sign_up_view_model.dart';
 
 class AppRouter {
   AppRouter._();
@@ -25,7 +27,12 @@ class AppRouter {
       GoRoute(path: '/start', builder: (context, state) => const StartScreen()),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const SignUpScreen(),
+        // 화면마다 하나의 ViewModel: 회원가입 화면을 떠나면 함께 dispose된다.
+        builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
+          create: (context) =>
+              SignUpViewModel(context.read<MemberCheckService>()),
+          child: const SignUpScreen(),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

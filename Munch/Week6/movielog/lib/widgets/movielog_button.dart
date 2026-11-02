@@ -51,10 +51,7 @@ class MovieLogButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         // 라벨과 인디케이터는 동시에 그리지 않고 하나만 선택한다.
         child: isLoading

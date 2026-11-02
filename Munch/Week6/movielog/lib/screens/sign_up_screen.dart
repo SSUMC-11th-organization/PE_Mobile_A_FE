@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/movielog_button.dart';
 import '../widgets/movielog_text_form_field.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -67,15 +70,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  bool get _canSubmit =>
+  /// 형식 검증과 서버 중복 확인(닉네임·이메일 모두 사용 가능)을 함께 통과해야 한다.
+  bool _canSubmit(SignUpViewModel viewModel) =>
       _validateNickname(_nicknameController.text) == null &&
       _validateEmail(_emailController.text) == null &&
       _validatePassword(_passwordController.text) == null &&
+      viewModel.isNicknameAvailable &&
+      viewModel.isEmailAvailable &&
       _agreedToTerms;
 
   void _handleSubmit() {
     final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid) return;
+    if (!isValid || !_canSubmit(context.read<SignUpViewModel>())) return;
 
     FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context)
@@ -83,8 +89,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
     context.go('/home');
   }
 
+  /// 입력창 높이(내용 16 + 상하 패딩 14×2 + 여유)와 맞춘 중복 확인 버튼 높이.
+  static const double _checkButtonHeight = 48;
+
+  /// 에러가 아닌 확인 상태의 안내 문구. 에러 문구는 errorText로 따로 표시된다.
+  String? _checkHelperText(CheckStatus status, String fieldName) {
+    return switch (status) {
+      CheckStatus.checking => '$fieldName 사용 가능 여부를 확인 중입니다.',
+      CheckStatus.available => '사용 가능한 $fieldName입니다.',
+      _ => null,
+    };
+  }
+
+  Color? _checkHelperColor(CheckStatus status) {
+    return switch (status) {
+      CheckStatus.checking => AppColors.info,
+      CheckStatus.available => AppColors.success,
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final viewModel = context.watch<SignUpViewModel>();
+
     return Scaffold(
       appBar: const CommonAppBar(title: '회원가입', centerTitle: true),
       body: SafeArea(
@@ -116,8 +144,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             controller: _nicknameController,
                             validator: _validateNickname,
                             textInputAction: TextInputAction.next,
+                            onChanged: viewModel.onNicknameChanged,
                             onFieldSubmitted: (_) =>
                                 _emailFocusNode.requestFocus(),
+                            errorText: viewModel.nicknameErrorText,
+                            isConfirmed: viewModel.isNicknameAvailable,
+                            helperText: _checkHelperText(
+                              viewModel.nicknameCheckStatus,
+                              '닉네임',
+                            ),
+                            helperColor: _checkHelperColor(
+                              viewModel.nicknameCheckStatus,
+                            ),
+                            // 입력창 옆 보조 버튼이므로 width는 null(내용 기반 크기)
+                            trailing: MovieLogButton(
+                              label: '중복 확인',
+                              height: _checkButtonHeight,
+                              isLoading:
+                                  viewModel.nicknameCheckStatus ==
+                                  CheckStatus.checking,
+                              onPressed:
+                                  viewModel.canCheckNickname &&
+                                      _validateNickname(
+                                            _nicknameController.text,
+                                          ) ==
+                                          null
+                                  ? () => viewModel.checkNickname(
+                                      _nicknameController.text,
+                                    )
+                                  : null,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           MovieLogTextFormField(
@@ -128,8 +184,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             focusNode: _emailFocusNode,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
+                            onChanged: viewModel.onEmailChanged,
                             onFieldSubmitted: (_) =>
                                 _passwordFocusNode.requestFocus(),
+                            errorText: viewModel.emailErrorText,
+                            isConfirmed: viewModel.isEmailAvailable,
+                            helperText: _checkHelperText(
+                              viewModel.emailCheckStatus,
+                              '이메일',
+                            ),
+                            helperColor: _checkHelperColor(
+                              viewModel.emailCheckStatus,
+                            ),
+                            trailing: MovieLogButton(
+                              label: '중복 확인',
+                              height: _checkButtonHeight,
+                              isLoading:
+                                  viewModel.emailCheckStatus ==
+                                  CheckStatus.checking,
+                              onPressed:
+                                  viewModel.canCheckEmail &&
+                                      _validateEmail(_emailController.text) ==
+                                          null
+                                  ? () => viewModel.checkEmail(
+                                      _emailController.text,
+                                    )
+                                  : null,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           MovieLogTextFormField(
@@ -141,7 +222,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             obscurable: true,
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) {
-                              if (_canSubmit) _handleSubmit();
+                              if (_canSubmit(viewModel)) _handleSubmit();
                             },
                           ),
                           const SizedBox(height: 40),
@@ -151,9 +232,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 setState(() => _agreedToTerms = value),
                           ),
                           const SizedBox(height: 24),
-                          _SignUpSubmitButton(
-                            enabled: _canSubmit,
-                            onPressed: _handleSubmit,
+                          // Form 하단 제출 버튼이므로 전체 너비를 사용한다.
+                          MovieLogButton(
+                            label: '가입하기',
+                            width: double.infinity,
+                            height: 52,
+                            onPressed: _canSubmit(viewModel)
+                                ? _handleSubmit
+                                : null,
                           ),
                           const SizedBox(height: 24),
                           const _LoginPrompt(),
@@ -213,33 +299,6 @@ class _TermsAgreement extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SignUpSubmitButton extends StatelessWidget {
-  const _SignUpSubmitButton({required this.enabled, required this.onPressed});
-
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: enabled ? onPressed : null,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.violet,
-        disabledBackgroundColor: AppColors.violet.withValues(alpha: 0.35),
-        foregroundColor: AppColors.white,
-        disabledForegroundColor: AppColors.white,
-        minimumSize: const Size(double.infinity, 52),
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: const Text(
-        '가입하기',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-      ),
     );
   }
 }

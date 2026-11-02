@@ -1,13 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/router/app_router.dart';
 
+import 'fakes/fake_member_check_service.dart';
 import 'fakes/fake_tmdb_movie_service.dart';
 
-Future<void> pumpSignUpScreen(WidgetTester tester) async {
-  await tester.pumpWidget(MovieLogApp(movieService: FakeTmdbMovieService()));
+Future<void> pumpSignUpScreen(
+  WidgetTester tester, {
+  FakeMemberCheckService? checkService,
+}) async {
+  await tester.pumpWidget(
+    MovieLogApp(
+      movieService: FakeTmdbMovieService(),
+      memberCheckService: checkService ?? FakeMemberCheckService(),
+    ),
+  );
   AppRouter.router.go('/register');
   await tester.pumpAndSettle();
 }
@@ -51,15 +62,81 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(2), 'password1234');
     await tester.pump();
 
+    // 중복 확인 전에는 형식이 유효해도 가입할 수 없다.
+    expect(
+      tester
+          .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '가입하기'))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(0));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(1));
+    await tester.pump();
+
+    expect(find.text('사용 가능한 닉네임입니다.'), findsOneWidget);
+    expect(find.text('사용 가능한 이메일입니다.'), findsOneWidget);
+
     final submitButton = tester.widget<ElevatedButton>(
       find.widgetWithText(ElevatedButton, '가입하기'),
     );
     expect(submitButton.onPressed, isNotNull);
 
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, '가입하기'));
     await tester.tap(find.widgetWithText(ElevatedButton, '가입하기'));
     await tester.pump();
 
     expect(find.text('회원가입이 완료되었습니다.'), findsOneWidget);
+  });
+
+  testWidgets('중복 닉네임은 에러로 표시되고, 같은 값을 다시 입력하면 즉시 에러로 돌아온다', (
+    WidgetTester tester,
+  ) async {
+    final service = FakeMemberCheckService(duplicatedValues: {'영화광'});
+    await pumpSignUpScreen(tester, checkService: service);
+
+    final nicknameField = find.byType(TextFormField).at(0);
+    ElevatedButton checkButton() => tester.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, '중복 확인').at(0),
+    );
+
+    await tester.enterText(nicknameField, '영화광');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(0));
+    await tester.pump();
+
+    expect(find.text('이미 사용 중인 닉네임입니다.'), findsOneWidget);
+    expect(checkButton().onPressed, isNull);
+
+    await tester.enterText(nicknameField, '영화');
+    await tester.pump();
+    expect(find.text('이미 사용 중인 닉네임입니다.'), findsNothing);
+    expect(checkButton().onPressed, isNotNull);
+
+    await tester.enterText(nicknameField, '영화광');
+    await tester.pump();
+    expect(find.text('이미 사용 중인 닉네임입니다.'), findsOneWidget);
+    expect(checkButton().onPressed, isNull);
+    expect(service.nicknameCalls, ['영화광']);
+  });
+
+  testWidgets('통신 중에는 버튼에 인디케이터만 보이고 누를 수 없다', (WidgetTester tester) async {
+    final service = FakeMemberCheckService()..pending = Completer<void>();
+    await pumpSignUpScreen(tester, checkService: service);
+
+    await tester.enterText(find.byType(TextFormField).at(0), '무비러버');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(0));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('닉네임 사용 가능 여부를 확인 중입니다.'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, '중복 확인'), findsOneWidget);
+
+    service.pending!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('사용 가능한 닉네임입니다.'), findsOneWidget);
   });
 
   testWidgets('좁은 화면에서도 RenderFlex overflow 없이 렌더링된다', (

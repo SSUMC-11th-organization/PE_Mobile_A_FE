@@ -11,6 +11,8 @@ abstract final class AppColors {
 
   static const error = Color(0xFFB3261E);
   static const errorContainer = Color(0xFFF9DEDC);
+  static const success = Color(0xFF2E7D32);
+  static const info = Color(0xFF1565C0);
   static const fieldFill = Color(0xFFF3EEF9);
   static const skeleton = Color(0xFFE6E1EC);
 }
