@@ -29,11 +29,20 @@ class TmdbMovieDto {
       posterPath: json['poster_path'] as String?,
       backdropPath: json['backdrop_path'] as String?,
       releaseDate: json['release_date'] as String?,
-      genreIds: (json['genre_ids'] as List<dynamic>? ?? const [])
-          .map((value) => (value as num).toInt())
-          .toList(),
+      genreIds: _parseGenreIds(json),
       voteAverage: (json['vote_average'] as num? ?? 0).toDouble(),
       popularity: (json['popularity'] as num? ?? 0).toDouble(),
     );
+  }
+
+  // 목록 응답은 genre_ids, 상세 응답은 genres[{id, name}]로 내려온다.
+  static List<int> _parseGenreIds(Map<String, dynamic> json) {
+    final ids = json['genre_ids'] as List<dynamic>?;
+    if (ids != null) return ids.map((value) => (value as num).toInt()).toList();
+
+    final genres = json['genres'] as List<dynamic>? ?? const [];
+    return genres
+        .map((genre) => ((genre as Map<String, dynamic>)['id'] as num).toInt())
+        .toList();
   }
 }
