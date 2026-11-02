@@ -39,7 +39,6 @@ class HomeScreen extends StatelessWidget {
             style: AppTextStyles.titleLarge.copyWith(fontSize: 28, height: 1.3),
           ),
           const SizedBox(height: 24),
-          // 상태가 바뀌면 인기 영화 영역만 다시 그린다.
           Consumer<MovieHomeViewModel>(
             builder: (context, viewModel, child) {
               return switch (viewModel.status) {

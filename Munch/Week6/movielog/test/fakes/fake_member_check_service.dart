@@ -3,11 +3,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:movielog/data/services/member_check_service.dart';
 
-/// 네트워크 없이 중복 확인 결과를 조절하는 가짜 Service.
-///
-/// - [duplicatedValues]에 있는 값은 `available: false`
-/// - [failing]이 true면 DioException
-/// - [pending]이 있으면 그 Completer가 완료될 때까지 응답을 미룬다.
 class FakeMemberCheckService extends MemberCheckService {
   FakeMemberCheckService({Set<String>? duplicatedValues})
     : duplicatedValues = duplicatedValues ?? {},

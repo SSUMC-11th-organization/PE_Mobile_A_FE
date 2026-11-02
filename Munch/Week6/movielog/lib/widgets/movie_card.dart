@@ -5,7 +5,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'tmdb_poster_image.dart';
 
-/// `release_date`가 없거나 형식이 맞지 않으면 null을 반환해 연도를 표시하지 않는다.
 String? releaseYearOf(String? releaseDate) {
   if (releaseDate == null || releaseDate.length < 4) return null;
   final year = releaseDate.substring(0, 4);

@@ -17,7 +17,6 @@ import '../widgets/movie_list_error.dart';
 import '../widgets/movie_list_loading.dart';
 import '../widgets/movie_load_retry_dialog.dart';
 
-/// 상태와 요청은 [MovieListViewModel]이 가진다. 이 화면은 상태를 그리고 입력을 전달만 한다.
 class MovieListScreen extends StatelessWidget {
   const MovieListScreen({super.key});
 
@@ -34,7 +33,6 @@ class MovieListScreen extends StatelessWidget {
       body: Consumer<MovieListViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.genres.isEmpty) {
-            // 장르 목록을 아직 못 받은 첫 로딩·첫 실패 화면
             return switch (viewModel.status) {
               MovieListLoadStatus.error => MovieListError(
                 message: viewModel.message ?? MovieListError.defaultMessage,
@@ -110,8 +108,6 @@ class _MovieListBody extends StatelessWidget {
   }
 }
 
-/// 새로고침 중에도 기존 목록을 그대로 두고, 완료되면 ViewModel이 최신 목록으로 바꾼다.
-/// Loading·새로고침 중에는 [enabled]가 false라 당김 제스처가 동작하지 않는다.
 class _RefreshableList extends StatelessWidget {
   const _RefreshableList({required this.enabled, required this.child});
 
@@ -206,7 +202,6 @@ class _ScrollableEmpty extends StatelessWidget {
   }
 }
 
-/// 확인에서 아무것도 고르지 않으면 빈 목록이 오고, ViewModel이 null(전체)로 바꾼다.
 Future<void> _selectGenres(BuildContext context, List<int>? genreIds) {
   return _runAndHandle(
     context,
@@ -222,8 +217,6 @@ Future<void> _runAndHandle(
   if (context.mounted) await _handleResult(context, result);
 }
 
-/// 최근 성공 목록을 유지한 채 실패했으면 재시도 Dialog를 띄운다.
-/// 다시 시도는 마지막으로 선택한 장르로 page 1부터 다시 요청하고, 또 실패하면 Dialog를 다시 띄운다.
 Future<void> _handleResult(
   BuildContext context,
   MovieListLoadResult result,

@@ -44,7 +44,6 @@ Matcher isDiscoverCall(int page, List<int> genreIds) {
       .having((call) => call.genreIds, 'genreIds', genreIds);
 }
 
-/// 네트워크 없이 ViewModel·화면을 검증하는 가짜 Service.
 class FakeTmdbMovieService extends TmdbMovieService {
   FakeTmdbMovieService() : super(Dio());
 
@@ -53,7 +52,6 @@ class FakeTmdbMovieService extends TmdbMovieService {
   TmdbMoviePageDto Function(int page) popular = (page) =>
       pageFixture(page, [1, 2, 3, 4, 5, 6, 7]);
 
-  /// 기본: 페이지마다 20개, 다음 페이지와 5개씩 겹친다.
   TmdbMoviePageDto Function(int page, List<int>? genreIds) discover =
       (page, genreIds) => pageFixture(
         page,
@@ -70,7 +68,6 @@ class FakeTmdbMovieService extends TmdbMovieService {
   bool failGenres = false;
   bool failPopular = false;
 
-  /// 지정하면 Discover 응답이 이 Future가 끝날 때까지 멈춘다.
   Completer<void>? discoverGate;
 
   @override

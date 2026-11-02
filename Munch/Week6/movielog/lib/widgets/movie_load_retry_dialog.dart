@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// 목록 요청 실패 안내. "다시 시도"는 true, "취소"는 false를 반환한다.
 class MovieLoadRetryDialog extends StatelessWidget {
   const MovieLoadRetryDialog({super.key});
 

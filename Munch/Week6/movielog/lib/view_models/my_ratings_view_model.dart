@@ -6,7 +6,6 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 
-// 로그인한 본인이 아닌 학습용 공개 데이터의 memberId
 const int sampleMemberId = int.fromEnvironment(
   'RATINGS_MEMBER_ID',
   defaultValue: 1,

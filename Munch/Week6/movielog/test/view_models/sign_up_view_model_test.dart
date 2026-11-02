@@ -48,7 +48,6 @@ void main() {
     await viewModel.checkNickname('무비러버');
     expect(viewModel.nicknameCheckStatus, CheckStatus.error);
     expect(viewModel.nicknameErrorText, '중복 확인에 실패했습니다. 다시 시도해 주세요.');
-    // 통신 실패는 다시 시도할 수 있어야 한다.
     expect(viewModel.canCheckNickname, isTrue);
   });
 
@@ -95,12 +94,12 @@ void main() {
       viewModel.onNicknameChanged('영화광');
       await viewModel.checkNickname('영화광');
       viewModel.onNicknameChanged('영화');
-      viewModel.onNicknameChanged(' 영화광 '); // 앞뒤 공백은 같은 값으로 본다.
+      viewModel.onNicknameChanged(' 영화광 ');
 
       expect(viewModel.nicknameCheckStatus, CheckStatus.duplicated);
       expect(viewModel.nicknameErrorText, '이미 사용 중인 닉네임입니다.');
       expect(viewModel.canCheckNickname, isFalse);
-      expect(service.nicknameCalls, ['영화광']); // API는 한 번만 호출됨
+      expect(service.nicknameCalls, ['영화광']);
     });
   });
 

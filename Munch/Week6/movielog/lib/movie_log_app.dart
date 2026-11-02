@@ -17,17 +17,14 @@ class MovieLogApp extends StatelessWidget {
     this.ratingApiService,
   });
 
-  /// 테스트에서 가짜 Service를 주입할 때 쓴다. 없으면 실제 Client로 만든다.
   final TmdbMovieService? movieService;
   final MemberCheckService? memberCheckService;
   final RatingApiService? ratingApiService;
 
   @override
   Widget build(BuildContext context) {
-    // 워크북 백엔드를 호출하는 Service들은 Dio 인스턴스 하나를 공유한다.
     final movieLogClient = createMovieLogClient();
 
-    // 여러 Route가 함께 쓰는 stateless Service는 MaterialApp.router 위에서 한 번만 만든다.
     return MultiProvider(
       providers: [
         Provider<TmdbMovieService>(

@@ -62,7 +62,6 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(2), 'password1234');
     await tester.pump();
 
-    // 중복 확인 전에는 형식이 유효해도 가입할 수 없다.
     expect(
       tester
           .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '가입하기'))

@@ -8,7 +8,6 @@ class MovieListLoading extends StatefulWidget {
 
   static const skeletonCount = 6;
 
-  /// 장르 Chip이 이미 화면에 있으면 false로 두어 Grid skeleton만 그린다.
   final bool showGenreSkeleton;
 
   @override

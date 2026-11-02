@@ -1,6 +1,5 @@
 import 'tmdb_movie_dto.dart';
 
-/// Popular·Discover 응답. 영화 배열과 함께 다음 페이지 판단에 쓰는 metadata를 담는다.
 class TmdbMoviePageDto {
   const TmdbMoviePageDto({
     required this.page,

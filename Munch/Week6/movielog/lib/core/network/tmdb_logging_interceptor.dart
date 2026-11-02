@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-/// 모든 TMDB 요청/응답/오류를 같은 형식으로 기록한다. Authorization 원문은 남기지 않는다.
 class TmdbLoggingInterceptor extends Interceptor {
   static const _maskedAuthorization = 'Bearer ***';
 

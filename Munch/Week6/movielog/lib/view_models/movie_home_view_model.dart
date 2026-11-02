@@ -29,7 +29,6 @@ class MovieHomeViewModel extends ChangeNotifier {
 
     try {
       final page = await _service.fetchPopular();
-      // 결과가 5개보다 적어도 take는 있는 만큼만 반환한다.
       _popularMovies = page.results.take(popularCount).toList();
       _status = _popularMovies.isEmpty
           ? MovieHomeLoadStatus.empty

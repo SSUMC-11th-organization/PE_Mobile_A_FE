@@ -6,6 +6,7 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/member_check_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
+import '../screens/button_preview_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/movie_detail_screen.dart';
@@ -22,7 +23,6 @@ import '../view_models/sign_up_view_model.dart';
 class AppRouter {
   AppRouter._();
 
-  /// 상세 화면은 TMDB id를 path로, 이미 받은 DTO를 extra로 받는다.
   static String movieDetailLocation(int movieId) => '/movies/$movieId';
 
   static final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -33,8 +33,11 @@ class AppRouter {
     routes: [
       GoRoute(path: '/start', builder: (context, state) => const StartScreen()),
       GoRoute(
+        path: '/button-preview',
+        builder: (context, state) => const ButtonPreviewScreen(),
+      ),
+      GoRoute(
         path: '/register',
-        // 화면마다 하나의 ViewModel: 회원가입 화면을 떠나면 함께 dispose된다.
         builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
           create: (context) =>
               SignUpViewModel(context.read<MemberCheckService>()),
@@ -50,7 +53,6 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/home',
-                // indexedStack이 Branch를 유지하므로 ViewModel과 첫 요청은 한 번만 만들어진다.
                 builder: (context, state) =>
                     ChangeNotifierProvider<MovieHomeViewModel>(
                       create: (context) =>

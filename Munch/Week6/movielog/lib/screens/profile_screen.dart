@@ -16,7 +16,7 @@ class ProfileScreen extends StatelessWidget {
         title: '내 프로필',
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => context.push('/button-preview'),
             icon: const Icon(Icons.settings, color: AppColors.violet),
           ),
         ],

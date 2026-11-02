@@ -35,18 +35,13 @@ class MovieLogTextFormField extends StatefulWidget {
   final ValueChanged<String>? onFieldSubmitted;
   final ValueChanged<String>? onChanged;
 
-  /// 로컬 validator가 모르는 외부(서버) 에러. 형식 에러가 있으면 형식 에러가 우선한다.
   final String? errorText;
 
-  /// 에러가 없을 때 입력창 아래에 표시하는 안내 문구와 색상.
   final String? helperText;
   final Color? helperColor;
 
-  /// null이면 형식 검증만 통과해도 체크 아이콘을 보여준다.
-  /// 값이 있으면 true일 때만(예: 서버 중복 확인 완료) 체크 아이콘을 보여준다.
   final bool? isConfirmed;
 
-  /// 입력창 오른쪽에 8px 간격으로 나란히 둘 Widget (예: 중복 확인 버튼).
   final Widget? trailing;
 
   @override
@@ -145,7 +140,6 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
         if (widget.trailing == null)
           field
         else
-          // TextFormField와 trailing을 Row의 별도 형제로 두어 체크 아이콘과 겹치지 않게 한다.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

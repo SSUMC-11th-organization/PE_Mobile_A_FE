@@ -18,7 +18,6 @@ class MovieDetailScreen extends StatefulWidget {
     this.genreNames = const {},
   });
 
-  /// TMDB 영화 id. 이후 평점 API의 movieId로 그대로 전달한다.
   final int? movieId;
   final TmdbMovieDto? movie;
   final Map<int, String> genreNames;

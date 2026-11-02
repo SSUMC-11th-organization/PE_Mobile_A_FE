@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// `poster_path` URL 조합, null 처리, 로드 실패 placeholder를 한 곳에서 처리한다.
-/// [width]·[height]를 비우면 부모 크기를 채운다.
 class TmdbPosterImage extends StatelessWidget {
   const TmdbPosterImage({
     super.key,

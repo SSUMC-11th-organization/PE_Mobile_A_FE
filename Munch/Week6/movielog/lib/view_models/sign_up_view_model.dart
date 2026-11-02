@@ -3,18 +3,8 @@ import 'package:flutter/foundation.dart';
 
 import '../data/services/member_check_service.dart';
 
-/// 중복 확인 한 건의 상태.
-/// - idle: 아직 확인하지 않았거나, 입력이 바뀌어 이전 결과가 무효화됨
-/// - checking: 요청 진행 중
-/// - available: 서버가 사용 가능하다고 응답
-/// - duplicated: 서버가 이미 사용 중이라고 응답 (정상 응답)
-/// - error: 통신 자체가 실패 (DioException)
 enum CheckStatus { idle, checking, available, duplicated, error }
 
-/// 회원가입 화면 전용 ViewModel.
-///
-/// 닉네임과 이메일은 서로 영향을 주지 않도록 상태·요청 버전·현재 입력값을
-/// 필드별로 따로 관리한다.
 class SignUpViewModel extends ChangeNotifier {
   SignUpViewModel(this._service);
 
@@ -22,16 +12,13 @@ class SignUpViewModel extends ChangeNotifier {
 
   bool _disposed = false;
 
-  // ---------------------------------------------------------------- 닉네임
   CheckStatus nicknameCheckStatus = CheckStatus.idle;
   String? nicknameErrorText;
 
-  /// 마지막으로 서버가 "중복"이라고 응답한 닉네임 (챌린지 미션).
   String? _duplicatedNickname;
   String _currentNickname = '';
   int _nicknameRequestVersion = 0;
 
-  /// 통신 중이거나, 현재 값이 이미 중복으로 확인된 값이면 누를 수 없다.
   bool get canCheckNickname =>
       nicknameCheckStatus != CheckStatus.checking &&
       nicknameCheckStatus != CheckStatus.duplicated;
@@ -40,14 +27,12 @@ class SignUpViewModel extends ChangeNotifier {
 
   void onNicknameChanged(String value) {
     final trimmed = value.trim();
-    // 공백만 바뀐 경우는 같은 값이므로 기존 결과를 유지한다.
     if (trimmed == _currentNickname) return;
 
     _currentNickname = trimmed;
     _nicknameRequestVersion++; // 기다리던 이전 요청의 응답을 무효화한다.
 
     if (_duplicatedNickname != null && trimmed == _duplicatedNickname) {
-      // 방금 중복이었던 값과 같으면 서버에 다시 묻지 않고 즉시 에러로 복원한다.
       nicknameCheckStatus = CheckStatus.duplicated;
       nicknameErrorText = _nicknameDuplicatedMessage;
     } else {
@@ -94,11 +79,9 @@ class SignUpViewModel extends ChangeNotifier {
     _notify();
   }
 
-  // ---------------------------------------------------------------- 이메일
   CheckStatus emailCheckStatus = CheckStatus.idle;
   String? emailErrorText;
 
-  /// 마지막으로 서버가 "중복"이라고 응답한 이메일 (챌린지 미션).
   String? _duplicatedEmail;
   String _currentEmail = '';
   int _emailRequestVersion = 0;
@@ -161,7 +144,6 @@ class SignUpViewModel extends ChangeNotifier {
     _notify();
   }
 
-  // ---------------------------------------------------------------- 공통
   static const _nicknameDuplicatedMessage = '이미 사용 중인 닉네임입니다.';
   static const _emailDuplicatedMessage = '이미 사용 중인 이메일입니다.';
   static const _networkErrorMessage = '중복 확인에 실패했습니다. 다시 시도해 주세요.';
@@ -173,7 +155,6 @@ class SignUpViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    // 화면을 떠난 뒤 도착한 응답도 무시되도록 버전을 올린다.
     _nicknameRequestVersion++;
     _emailRequestVersion++;
     super.dispose();

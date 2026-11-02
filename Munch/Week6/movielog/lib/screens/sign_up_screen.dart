@@ -70,7 +70,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  /// 형식 검증과 서버 중복 확인(닉네임·이메일 모두 사용 가능)을 함께 통과해야 한다.
   bool _canSubmit(SignUpViewModel viewModel) =>
       _validateNickname(_nicknameController.text) == null &&
       _validateEmail(_emailController.text) == null &&
@@ -89,10 +88,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     context.go('/home');
   }
 
-  /// 입력창 높이(내용 16 + 상하 패딩 14×2 + 여유)와 맞춘 중복 확인 버튼 높이.
   static const double _checkButtonHeight = 48;
 
-  /// 에러가 아닌 확인 상태의 안내 문구. 에러 문구는 errorText로 따로 표시된다.
   String? _checkHelperText(CheckStatus status, String fieldName) {
     return switch (status) {
       CheckStatus.checking => '$fieldName 사용 가능 여부를 확인 중입니다.',
@@ -156,7 +153,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             helperColor: _checkHelperColor(
                               viewModel.nicknameCheckStatus,
                             ),
-                            // 입력창 옆 보조 버튼이므로 width는 null(내용 기반 크기)
                             trailing: MovieLogButton(
                               label: '중복 확인',
                               height: _checkButtonHeight,
@@ -232,7 +228,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 setState(() => _agreedToTerms = value),
                           ),
                           const SizedBox(height: 24),
-                          // Form 하단 제출 버튼이므로 전체 너비를 사용한다.
                           MovieLogButton(
                             label: '가입하기',
                             width: double.infinity,

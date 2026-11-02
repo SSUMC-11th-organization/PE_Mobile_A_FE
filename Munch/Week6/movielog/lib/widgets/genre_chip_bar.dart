@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../data/models/tmdb_genre_dto.dart';
 import '../theme/app_colors.dart';
 
-/// TMDB Genre API의 id/name으로 Chip을 그린다. [enabled]가 false면 선택할 수 없다.
 class GenreChipBar extends StatelessWidget {
   const GenreChipBar({
     super.key,

@@ -4,8 +4,6 @@ import '../data/models/tmdb_genre_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// 3주차 장르 BottomSheet를 TMDB 장르 id 기반으로 재사용한다.
-/// 확인을 누르면 선택한 장르 id 목록을 반환한다. 체크 중에는 Sheet 내부 상태만 바뀐다.
 class GenreFilterSheet extends StatefulWidget {
   const GenreFilterSheet({
     super.key,
