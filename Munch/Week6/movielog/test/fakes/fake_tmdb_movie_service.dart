@@ -90,6 +90,19 @@ class FakeTmdbMovieService extends TmdbMovieService {
     return discover(page, genreIds);
   }
 
+  Map<int, TmdbMovieDto?> movieDetails = {};
+  Set<int> failingMovieIds = {};
+  final findMovieCalls = <int>[];
+
+  @override
+  Future<TmdbMovieDto?> findMovieById(int movieId) async {
+    findMovieCalls.add(movieId);
+    if (failingMovieIds.contains(movieId)) {
+      throw networkError('/movie/$movieId');
+    }
+    return movieDetails[movieId];
+  }
+
   @override
   Future<List<TmdbGenreDto>> fetchGenres() async {
     if (failGenres) throw networkError('/genre/movie/list');
