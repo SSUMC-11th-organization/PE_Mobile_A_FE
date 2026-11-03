@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
+import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
+import '../utils/tmdb_movie_format.dart';
+import 'tmdb_poster_image.dart';
 
 /// 영화 목록(2열 Grid)에서 사용하는 카드.
 class MovieCard extends StatelessWidget {
-  const MovieCard({super.key, required this.movie});
+  const MovieCard({super.key, required this.movie, this.genreNames = const []});
 
-  final Movie movie;
+  final TmdbMovieDto movie;
+  final List<String> genreNames;
+
+  String get _caption {
+    final year = movie.releaseYear;
+    return [
+      if (year != null) '$year',
+      if (genreNames.isNotEmpty) genreNames.first,
+    ].join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/movies/${movie.id}'),
+      // 배열 index가 아니라 TMDB id를 경로에 담는다.
+      onTap: () => context.push(
+        '/movies/${movie.id}',
+        extra: MovieDetailArgs(movie: movie, genreNames: genreNames),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -24,14 +40,11 @@ class MovieCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(
-                    color: AppColors.surfaceVariant,
-                    child: Image.asset(movie.posterAsset, fit: BoxFit.cover),
-                  ),
+                  TmdbPosterImage(posterPath: movie.posterPath),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: _RatingBadge(rating: movie.rating),
+                    child: _RatingBadge(label: movie.ratingLabel),
                   ),
                 ],
               ),
@@ -52,7 +65,7 @@ class MovieCard extends StatelessWidget {
           Opacity(
             opacity: 0.8,
             child: Text(
-              '${movie.year} · ${movie.genre}',
+              _caption,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -70,9 +83,9 @@ class MovieCard extends StatelessWidget {
 }
 
 class _RatingBadge extends StatelessWidget {
-  const _RatingBadge({required this.rating});
+  const _RatingBadge({required this.label});
 
-  final double rating;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +97,7 @@ class _RatingBadge extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
-          '★ $rating',
+          '★ $label',
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,

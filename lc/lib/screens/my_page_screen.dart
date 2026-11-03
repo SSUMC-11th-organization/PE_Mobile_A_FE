@@ -24,8 +24,28 @@ class MyPageScreen extends StatelessWidget {
             ProfileStats(),
             SizedBox(height: 32),
             FavoriteGenres(),
+            SizedBox(height: 48),
+            _TmdbAttribution(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// TMDB 데이터를 사용하는 앱이 표기해야 하는 출처 문구.
+class _TmdbAttribution extends StatelessWidget {
+  const _TmdbAttribution();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 12,
+        height: 16 / 12,
+        color: AppColors.textSecondary,
       ),
     );
   }
