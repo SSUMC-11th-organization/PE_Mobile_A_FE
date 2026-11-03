@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import 'movie_card.dart';
 
 // 영화 목록 Success 상태의 포스터 Grid입니다.
 class MovieGrid extends StatelessWidget {
   const MovieGrid({super.key, required this.movies});
 
-  final List<Movie> movies;
+  final List<TmdbMovieDto> movies;
 
   @override
   Widget build(BuildContext context) {

@@ -8,6 +8,8 @@ import 'package:movielog/screens/sign_up_screen.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import 'helpers/tmdb_fakes.dart';
+
 void main() {
   // 영화 목록이 장르를 로컬에 저장하므로 테스트에서는 메모리 저장소를 씁니다.
   setUp(() {
@@ -16,14 +18,20 @@ void main() {
   });
 
   // AppRouter.router는 static이라 테스트마다 시작 위치를 직접 맞춥니다.
-  Future<void> pumpAppAt(WidgetTester tester, String location) async {
+  Future<FakeTmdbMovieService> pumpAppAt(
+    WidgetTester tester,
+    String location, {
+    Object? extra,
+  }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    AppRouter.router.go(location);
-    await tester.pumpWidget(const MovieLogApp());
+    final service = FakeTmdbMovieService();
+    AppRouter.router.go(location, extra: extra);
+    await tester.pumpWidget(MovieLogApp(movieService: service));
     await tester.pumpAndSettle();
+    return service;
   }
 
   group('회원가입', () {
@@ -90,10 +98,11 @@ void main() {
       expect(AppRouter.router.canPop(), isFalse);
     });
 
-    testWidgets('영화 카드를 누르면 상세로 push 되고 뒤로 가기로 돌아온다', (tester) async {
-      await pumpAppAt(tester, '/home');
+    testWidgets('홈은 인기 영화 5개를 보여주고, 카드를 누르면 TMDB id로 상세에 간다', (tester) async {
+      final service = await pumpAppAt(tester, '/home');
+      expect(service.popularRequests, 1);
 
-      await tester.tap(find.text('미션 임프로버블'));
+      await tester.tap(find.text('영화 2'));
       await tester.pumpAndSettle();
 
       expect(AppRouter.router.state.uri.path, '/movies/2');
@@ -103,6 +112,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(AppRouter.router.state.uri.path, '/home');
+      // 상세에서 돌아와도 홈 ViewModel이 유지되어 Popular를 다시 요청하지 않습니다.
+      expect(service.popularRequests, 1);
+
+      // 가로 목록은 보이는 카드만 그리므로 끝까지 스크롤해서 5개에서 끝나는지 확인합니다.
+      final popularList = find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.right,
+      );
+      await tester.scrollUntilVisible(
+        find.text('영화 5'),
+        200,
+        scrollable: popularList,
+      );
+      expect(find.text('영화 5'), findsOneWidget);
+      expect(find.text('영화 6'), findsNothing);
     });
 
     testWidgets('NavigationBar 선택 상태가 현재 탭과 일치한다', (tester) async {
@@ -118,7 +142,7 @@ void main() {
       );
     });
 
-    testWidgets('없는 영화 ID로 들어오면 안내 문구를 보여준다', (tester) async {
+    testWidgets('영화 정보 없이 주소로 들어오면 안내 문구를 보여준다', (tester) async {
       await pumpAppAt(tester, '/movies/999');
 
       expect(find.text('영화를 찾을 수 없어요'), findsOneWidget);
@@ -126,31 +150,33 @@ void main() {
   });
 
   group('영화 목록과 상세', () {
-    testWidgets('장르 Chip을 누르면 해당 장르 영화만 보인다', (tester) async {
-      await pumpAppAt(tester, '/movies');
-      expect(find.text('6편 · 최신순'), findsOneWidget);
+    testWidgets('영화 탭에서 장르를 고르면 with_genres로 다시 요청한다', (tester) async {
+      final service = await pumpAppAt(tester, '/movies');
+      expect(find.text('30편 · 인기순'), findsOneWidget);
+      final requestsBefore = service.discoverRequests.length;
 
       await tester.tap(find.widgetWithText(ChoiceChip, '드라마'));
       await tester.pumpAndSettle();
 
-      expect(find.text('2편 · 최신순'), findsOneWidget);
-      expect(find.text('네 번째 오후'), findsOneWidget);
-      expect(find.text('공허의 메아리'), findsNothing);
+      final genreRequests = service.discoverRequests.skip(requestsBefore);
+      expect(genreRequests.first, (page: 1, genreId: 18));
+      expect(genreRequests.every((request) => request.genreId == 18), isTrue);
+      expect(find.text('22편 · 인기순'), findsOneWidget);
     });
 
-    testWidgets('정렬 BottomSheet에서 제목순을 고르면 정렬이 바뀐다', (tester) async {
-      await pumpAppAt(tester, '/movies');
+    testWidgets('줄거리와 포스터가 없으면 안내 문구와 placeholder를 보여준다', (tester) async {
+      await pumpAppAt(
+        tester,
+        '/movies/7',
+        extra: movieFixture(7, overview: '', posterPath: null),
+      );
 
-      await tester.tap(find.byTooltip('정렬'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('제목순'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('6편 · 제목순'), findsOneWidget);
+      expect(find.text('줄거리 정보가 없어요.'), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
     });
 
     testWidgets('평점 Dialog는 별점을 골라야 저장되고 Snackbar로 안내한다', (tester) async {
-      await pumpAppAt(tester, '/movies/1');
+      await pumpAppAt(tester, '/movies/1', extra: movieFixture(1));
 
       await tester.tap(find.text('평점 남기기'));
       await tester.pumpAndSettle();
@@ -177,7 +203,7 @@ void main() {
     });
 
     testWidgets('즐겨찾기를 누를 때마다 추가·삭제 Snackbar가 나온다', (tester) async {
-      await pumpAppAt(tester, '/movies/1');
+      await pumpAppAt(tester, '/movies/1', extra: movieFixture(1));
 
       await tester.tap(find.byTooltip('즐겨찾기 추가'));
       await tester.pump();

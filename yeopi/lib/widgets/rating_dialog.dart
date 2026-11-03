@@ -4,10 +4,23 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'movie_rating_input.dart';
 
-// 확인을 누르면 Navigator.pop으로 선택한 별점을 showDialog 호출부에 돌려줍니다.
-class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, required this.movieTitle});
+// 이후 자체 평점 API의 CreateRatingRequest로 보낼 값입니다. movieId는 TMDB 영화 id를 그대로 씁니다.
+class RatingSubmission {
+  const RatingSubmission({required this.movieId, required this.score});
 
+  final int movieId;
+  final double score;
+}
+
+// 저장을 누르면 Navigator.pop으로 RatingSubmission을 showDialog 호출부에 돌려줍니다.
+class RatingDialog extends StatefulWidget {
+  const RatingDialog({
+    super.key,
+    required this.movieId,
+    required this.movieTitle,
+  });
+
+  final int movieId;
   final String movieTitle;
 
   @override
@@ -55,7 +68,13 @@ class _RatingDialogState extends State<RatingDialog> {
                   child: ElevatedButton(
                     onPressed: _rating == 0
                         ? null
-                        : () => Navigator.pop(context, _rating),
+                        : () => Navigator.pop(
+                            context,
+                            RatingSubmission(
+                              movieId: widget.movieId,
+                              score: _rating,
+                            ),
+                          ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.violet,
                       foregroundColor: AppColors.white,
