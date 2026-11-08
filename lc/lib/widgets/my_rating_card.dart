@@ -7,10 +7,26 @@ import 'tmdb_poster_image.dart';
 
 /// 백엔드 평점 한 건과 TMDB 영화 정보를 함께 보여주는 카드.
 /// 영화 정보를 찾지 못해도(movie == null) 평점·후기·등록일은 그대로 보여준다.
+///
+/// 기본 모드에서는 오른쪽에 수정·삭제 버튼을, 선택 모드에서는 왼쪽에 체크박스를 보여준다.
+/// 이 목록은 조회한 회원 본인의 평점이므로 모든 카드에 수정·삭제를 노출한다.
 class MyRatingCard extends StatelessWidget {
-  const MyRatingCard({super.key, required this.entry});
+  const MyRatingCard({
+    super.key,
+    required this.entry,
+    this.onEdit,
+    this.onDelete,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggleSelected,
+  });
 
   final RatingWithMovie entry;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onToggleSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -18,16 +34,29 @@ class MyRatingCard extends StatelessWidget {
     final movie = entry.movie;
     final comment = rating.comment?.trim();
 
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.violetback,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.violetBorder),
+        border: Border.all(
+          color: selectionMode && selected
+              ? AppColors.violet
+              : AppColors.violetBorder,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (selectionMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 4, top: 28),
+              child: Checkbox(
+                value: selected,
+                activeColor: AppColors.violet,
+                onChanged: (_) => onToggleSelected?.call(),
+              ),
+            ),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             // posterPath가 null이거나 영화 자체를 못 찾으면 TmdbPosterImage가 placeholder를 그린다.
@@ -111,8 +140,34 @@ class MyRatingCard extends StatelessWidget {
               ],
             ),
           ),
+          if (!selectionMode)
+            Column(
+              children: [
+                IconButton(
+                  tooltip: '수정',
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  color: AppColors.violet,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onEdit,
+                ),
+                IconButton(
+                  tooltip: '삭제',
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  color: AppColors.error,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
         ],
       ),
+    );
+
+    if (!selectionMode) return card;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onToggleSelected,
+      child: card,
     );
   }
 

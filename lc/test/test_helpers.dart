@@ -135,6 +135,32 @@ class FakeTmdbMovieService extends TmdbMovieService {
     return genres;
   }
 
+  /// 영화 상세(GET /movie/{id}) 응답. 여기에 없으면 인기 목록·전체 목록에서 찾고, 없으면 404다.
+  final Map<int, TmdbMovieDto> details = {};
+  bool failDetail = false;
+  int fetchDetailCalls = 0;
+
+  @override
+  Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
+    fetchDetailCalls++;
+    if (failDetail) throw _failure('/movie/$movieId');
+    final found =
+        details[movieId] ??
+        popular.where((m) => m.id == movieId).firstOrNull ??
+        catalog(null).where((m) => m.id == movieId).firstOrNull;
+    if (found == null) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/movie/$movieId'),
+        type: DioExceptionType.badResponse,
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/movie/$movieId'),
+          statusCode: 404,
+        ),
+      );
+    }
+    return found;
+  }
+
   DioException _failure(String path) {
     return DioException(
       requestOptions: RequestOptions(path: path),

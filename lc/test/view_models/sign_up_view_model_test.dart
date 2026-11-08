@@ -7,11 +7,11 @@ import 'package:movielog/view_models/sign_up_view_model.dart';
 import '../week6_helpers.dart';
 
 void main() {
-  late FakeMemberCheckService service;
+  late FakeSignUpService service;
   late SignUpViewModel viewModel;
 
   setUp(() {
-    service = FakeMemberCheckService();
+    service = FakeSignUpService();
     viewModel = SignUpViewModel(service);
   });
 

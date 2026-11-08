@@ -1,6 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../data/services/member_check_service.dart';
+import '../data/models/create_member_request.dart';
+import '../data/services/sign_up_service.dart';
+import 'submit_status.dart';
+
+export 'submit_status.dart' show SubmitStatus;
 
 enum CheckStatus { idle, checking, available, duplicated, error }
 
@@ -97,7 +102,7 @@ class SignUpViewModel extends ChangeNotifier {
     );
   }
 
-  final MemberCheckService _service;
+  final SignUpService _service;
   late final _FieldCheck _nickname;
   late final _FieldCheck _email;
   bool _disposed = false;
@@ -113,6 +118,68 @@ class SignUpViewModel extends ChangeNotifier {
   bool get canCheckEmail => _email.canCheck;
   void onEmailChanged(String value) => _email.onValueChanged(value);
   Future<void> checkEmail(String value) => _email.check(value);
+
+  // ───────── 회원가입 제출 ─────────
+
+  SubmitStatus submitStatus = SubmitStatus.idle;
+
+  /// 가입 성공 응답(result.memberId)에서 읽은 실제 ID다.
+  int? createdMemberId;
+
+  /// 비밀번호 입력칸에 바로 붙일 수 있는 필드 단위 오류.
+  String? passwordErrorText;
+
+  /// 어느 입력칸에도 붙지 않는 화면 단위 오류(최종 중복 409 등). 화면이 한 번 꺼내 보여준다.
+  String? snackbarMessage;
+
+  bool get isSubmitting => submitStatus == SubmitStatus.submitting;
+
+  /// 가입 조건 중 서버 확인에 해당하는 부분: 현재 닉네임·이메일이 모두 "사용 가능"으로 확인됐고
+  /// 제출 중이 아니다. 로컬 Form 검증은 화면이 따로 확인한다.
+  bool get isRemoteChecksPassed =>
+      nicknameCheckStatus == CheckStatus.available &&
+      emailCheckStatus == CheckStatus.available &&
+      !isSubmitting;
+
+  void onPasswordChanged() {
+    passwordErrorText = null;
+    if (!_disposed) notifyListeners();
+  }
+
+  /// 화면이 snackbarMessage를 보여준 뒤 같은 문구가 다시 뜨지 않도록 비운다.
+  void consumeSnackbarMessage() => snackbarMessage = null;
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (isSubmitting) return;
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _service.signUp(request);
+      final id = response.result?.memberId;
+      // memberId가 없으면 가입을 완료한 것으로 표시하지 않고 계약 오류로 처리한다.
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      submitStatus = SubmitStatus.error;
+      final message = writeSignUpErrorMessage(error);
+      // 400이라고 모두 비밀번호 문제는 아니다. 메시지에 비밀번호가 명시된 경우에만 입력칸에 붙인다.
+      if (error.response?.statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+      }
+    } catch (_) {
+      // StateError나 응답 파싱 오류에도 "제출 중"에 멈추지 않는다.
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
+    }
+    if (!_disposed) notifyListeners();
+  }
 
   @override
   void dispose() {

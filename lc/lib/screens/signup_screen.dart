@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../data/models/create_member_request.dart';
 import '../utils/signup_validators.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
@@ -53,26 +55,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   void _refresh() => setState(() {});
 
+  /// 가입 조건: 로컬 Form 검증 통과 + 현재 닉네임·이메일이 서버 확인에서 "사용 가능" + 제출 중이 아님.
   bool get _canSubmit {
-    // 서버가 중복이라고 답한 값이 입력칸에 남아 있으면 가입할 수 없다.
     final viewModel = context.read<SignUpViewModel>();
     return SignUpValidators.nickname(_nicknameController.text) == null &&
         SignUpValidators.email(_emailController.text) == null &&
         SignUpValidators.password(_passwordController.text) == null &&
-        viewModel.nicknameCheckStatus != CheckStatus.duplicated &&
-        viewModel.emailCheckStatus != CheckStatus.duplicated &&
+        viewModel.isRemoteChecksPassed &&
         _agreedToTerms;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
-    context.go('/home');
+
+    // await 뒤에는 context를 쓰지 않도록 필요한 객체를 먼저 꺼내 둔다.
+    final viewModel = context.read<SignUpViewModel>();
+    final session = context.read<LearningMemberSession>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+    if (!mounted) return;
+
+    final memberId = viewModel.createdMemberId;
+    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
+      // 가입 응답의 실제 memberId를 이후 평점 요청에 쓰도록 보관한다.
+      session.setMemberId(memberId);
+      context.go('/movies');
+      return;
+    }
+    final message = viewModel.snackbarMessage;
+    if (message != null) {
+      viewModel.consumeSnackbarMessage();
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 회원가입 화면에서는 뒤로 가기가 동작하지 않는다.
+    // 회원가입 화면에서는 뒤로 가기가 동작하지 않는다. 제출 중에도 당연히 벗어날 수 없다.
     return PopScope(canPop: false, child: _buildScaffold());
   }
 
@@ -183,7 +212,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           SizedBox(height: compact ? 24 : 16),
           SignUpTextField(
             label: '비밀번호',
-            hintText: compact ? '영문, 숫자 포함 8자 이상' : '비밀번호를 입력해주세요',
+            hintText: compact ? '8자 이상, 대·소문자/숫자/특수문자 포함' : '비밀번호를 입력해주세요',
             compact: compact,
             showVisibilityToggle: compact,
             controller: _passwordController,
@@ -192,6 +221,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             obscureText: true,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
+            onChanged: (_) => viewModel.onPasswordChanged(),
+            // 로컬 검증을 통과해도 서버가 거부한 비밀번호면 에러 상태를 유지한다.
+            errorText: viewModel.passwordErrorText,
           ),
         ],
       ),
@@ -240,6 +272,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         MovieLogButton(
           label: '가입하기',
           width: double.infinity,
+          isLoading: context.watch<SignUpViewModel>().isSubmitting,
           onPressed: _canSubmit ? _submit : null,
         ),
         sectionGap,
