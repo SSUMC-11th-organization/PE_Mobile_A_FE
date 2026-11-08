@@ -14,3 +14,13 @@ String loadErrorMessage(Object error, {required String fallback}) {
     _ => fallback,
   };
 }
+
+// 빈 배열은 실패가 아니므로 여기 오지 않습니다. 400·404·그 외 실패를 서로 다른 문구로 나눕니다.
+String myRatingsErrorMessage(Object error) {
+  if (error is DioException) {
+    final status = error.response?.statusCode;
+    if (status == 400) return 'memberId 형식을 다시 확인해 주세요.';
+    if (status == 404) return '존재하지 않는 회원입니다.';
+  }
+  return loadErrorMessage(error, fallback: '평점을 불러오지 못했습니다.\n잠시 후 다시 시도해 주세요.');
+}

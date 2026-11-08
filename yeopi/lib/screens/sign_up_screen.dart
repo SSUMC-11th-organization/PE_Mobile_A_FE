@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
 import '../utils/sign_up_validators.dart';
+import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
-import '../widgets/sign_up_button.dart';
+import '../widgets/movielog_button.dart';
 import '../widgets/sign_up_header.dart';
 import '../widgets/terms_agreement.dart';
 
@@ -38,10 +40,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  bool get _canSubmit =>
-      SignUpValidators.nickname(_nicknameController.text) == null &&
-      SignUpValidators.email(_emailController.text) == null &&
+  // 형식 검사는 validator가, 서버 중복 여부는 ViewModel이 담당하고 둘 다 통과해야 가입할 수 있습니다.
+  bool _canSubmit(SignUpViewModel viewModel) =>
       SignUpValidators.password(_passwordController.text) == null &&
+      viewModel.isNicknameAvailable &&
+      viewModel.isEmailAvailable &&
       _agreedToTerms;
 
   void _submit() {
@@ -58,6 +61,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 중복 확인 상태가 바뀌면 입력창 에러와 가입 버튼 활성화가 함께 바뀌므로 Form 전체가 구독합니다.
+    final viewModel = context.watch<SignUpViewModel>();
+
     return Scaffold(
       appBar: const CommonAppBar(title: '회원가입', centerTitle: true),
       body: SafeArea(
@@ -73,32 +79,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
               children: [
                 const SignUpHeader(),
                 const SizedBox(height: 32),
-                TextFormField(
-                  controller: _nicknameController,
-                  decoration: _inputDecoration(
-                    label: '닉네임',
-                    hint: '영화로운 닉네임을 입력하세요',
-                    icon: Icons.person_outline,
+                _CheckableField(
+                  field: TextFormField(
+                    controller: _nicknameController,
+                    decoration: _inputDecoration(
+                      label: '닉네임',
+                      hint: '영화로운 닉네임을 입력하세요',
+                      icon: Icons.person_outline,
+                      status: viewModel.nicknameCheckStatus,
+                      serverErrorText: viewModel.nicknameErrorText,
+                      availableText: '사용할 수 있는 닉네임입니다.',
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: SignUpValidators.nickname,
+                    onChanged: viewModel.onNicknameChanged,
+                    onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
                   ),
-                  textInputAction: TextInputAction.next,
-                  validator: SignUpValidators.nickname,
-                  onChanged: (_) => setState(() {}),
-                  onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
+                  button: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.nicknameCheckStatus == CheckStatus.checking,
+                    onPressed: viewModel.canCheckNickname
+                        ? () =>
+                              viewModel.checkNickname(_nicknameController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  focusNode: _emailFocusNode,
-                  decoration: _inputDecoration(
-                    label: '이메일',
-                    hint: 'example@movielog.com',
-                    icon: Icons.mail_outline,
+                _CheckableField(
+                  field: TextFormField(
+                    controller: _emailController,
+                    focusNode: _emailFocusNode,
+                    decoration: _inputDecoration(
+                      label: '이메일',
+                      hint: 'example@movielog.com',
+                      icon: Icons.mail_outline,
+                      status: viewModel.emailCheckStatus,
+                      serverErrorText: viewModel.emailErrorText,
+                      availableText: '사용할 수 있는 이메일입니다.',
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: SignUpValidators.email,
+                    onChanged: viewModel.onEmailChanged,
+                    onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
                   ),
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  validator: SignUpValidators.email,
-                  onChanged: (_) => setState(() {}),
-                  onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
+                  button: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.emailCheckStatus == CheckStatus.checking,
+                    onPressed: viewModel.canCheckEmail
+                        ? () => viewModel.checkEmail(_emailController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -121,7 +154,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onChanged: (value) => setState(() => _agreedToTerms = value),
                 ),
                 const SizedBox(height: 24),
-                SignUpButton(onPressed: _canSubmit ? _submit : null),
+                MovieLogButton(
+                  label: '가입하기',
+                  width: double.infinity,
+                  onPressed: _canSubmit(viewModel) ? _submit : null,
+                ),
               ],
             ),
           ),
@@ -134,6 +171,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     required String label,
     required String hint,
     required IconData icon,
+    CheckStatus? status,
+    String? serverErrorText,
+    String? availableText,
   }) {
     OutlineInputBorder border(Color color, [double width = 1]) =>
         OutlineInputBorder(
@@ -141,16 +181,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
           borderSide: BorderSide(color: color, width: width),
         );
 
+    final isAvailable = status == CheckStatus.available;
+
     return InputDecoration(
       labelText: label,
       hintText: hint,
       prefixIcon: Icon(icon),
+      // 체크 표시는 입력창 안에만 두어 옆의 버튼과 겹치지 않게 합니다.
+      suffixIcon: isAvailable
+          ? const Icon(Icons.check_circle, color: AppColors.violet)
+          : null,
+      // validator 오류가 없을 때만 서버 중복 결과가 보입니다. (형식 오류가 먼저 보입니다.)
+      errorText: serverErrorText,
+      helperText: isAvailable ? availableText : null,
+      helperStyle: const TextStyle(color: AppColors.violet),
       filled: true,
       fillColor: AppColors.inputFill,
       enabledBorder: border(AppColors.outline),
       focusedBorder: border(AppColors.violet, 2),
       errorBorder: border(AppColors.error),
       focusedErrorBorder: border(AppColors.error, 2),
+    );
+  }
+}
+
+// 입력창과 중복 확인 버튼을 Row의 별도 형제로 두고 8px 간격을 줍니다.
+class _CheckableField extends StatelessWidget {
+  const _CheckableField({required this.field, required this.button});
+
+  final Widget field;
+  final Widget button;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      // 아래쪽 에러·안내 문구 높이가 바뀌어도 버튼은 입력창 높이에 맞춰 위쪽에 고정합니다.
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 8),
+        Padding(padding: const EdgeInsets.only(top: 6), child: button),
+      ],
     );
   }
 }

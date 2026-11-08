@@ -5,9 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/main.dart';
 import 'package:movielog/router/app_router.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
+import 'package:movielog/view_models/sign_up_view_model.dart';
+import 'package:movielog/widgets/movielog_button.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import 'helpers/movielog_fakes.dart';
 import 'helpers/tmdb_fakes.dart';
 
 void main() {
@@ -29,33 +33,65 @@ void main() {
 
     final service = FakeTmdbMovieService();
     AppRouter.router.go(location, extra: extra);
-    await tester.pumpWidget(MovieLogApp(movieService: service));
+    await tester.pumpWidget(
+      MovieLogApp(
+        movieService: service,
+        memberCheckService: FakeMemberCheckService(),
+        ratingApiService: FakeRatingApiService(),
+      ),
+    );
     await tester.pumpAndSettle();
     return service;
   }
 
+  // 닉네임·이메일을 입력하고 각각 중복 확인을 눌러 '사용 가능'까지 만듭니다.
+  Future<void> fillValidSignUp(WidgetTester tester) async {
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), '영화광');
+    await tester.enterText(fields.at(1), 'movie@movielog.com');
+    await tester.enterText(fields.at(2), 'password1');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(0));
+    await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(1));
+    await tester.pumpAndSettle();
+  }
+
   group('회원가입', () {
-    Future<void> pumpSignUp(WidgetTester tester) =>
-        tester.pumpWidget(const MaterialApp(home: SignUpScreen()));
+    Future<void> pumpSignUp(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider(
+            create: (_) => SignUpViewModel(FakeMemberCheckService()),
+            child: const SignUpScreen(),
+          ),
+        ),
+      );
+    }
 
     ElevatedButton signUpButton(WidgetTester tester) => tester
         .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, '가입하기'));
 
-    testWidgets('모든 입력이 유효하고 약관에 동의해야 가입 버튼이 활성화된다', (tester) async {
+    testWidgets('형식이 유효하고 중복 확인을 마치고 약관에 동의해야 가입 버튼이 활성화된다', (tester) async {
       await pumpSignUp(tester);
 
       expect(signUpButton(tester).onPressed, isNull);
 
       final fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(0), '무비러버');
+      await tester.enterText(fields.at(0), '영화광');
       await tester.enterText(fields.at(1), 'movie@movielog.com');
       await tester.enterText(fields.at(2), 'password1');
-      await tester.pump();
-
-      expect(signUpButton(tester).onPressed, isNull);
-
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
+
+      // 형식이 맞고 약관에 동의해도 중복 확인 전이면 가입할 수 없습니다.
+      expect(signUpButton(tester).onPressed, isNull);
+
+      await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(0));
+      await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(1));
+      await tester.pumpAndSettle();
 
       expect(signUpButton(tester).onPressed, isNotNull);
     });
@@ -83,10 +119,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('회원가입'), findsOneWidget);
 
-      final fields = find.byType(TextFormField);
-      await tester.enterText(fields.at(0), '무비러버');
-      await tester.enterText(fields.at(1), 'movie@movielog.com');
-      await tester.enterText(fields.at(2), 'password1');
+      await fillValidSignUp(tester);
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
       await tester.tap(find.text('가입하기'));
