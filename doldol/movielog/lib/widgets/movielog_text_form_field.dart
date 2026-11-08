@@ -15,6 +15,10 @@ class MovieLogTextFormField extends StatefulWidget {
     this.isPassword = false,
     this.onChanged,
     this.onFieldSubmitted,
+    this.errorText,
+    this.successText,
+    this.isVerified,
+    this.trailing,
   });
 
   final TextEditingController controller;
@@ -27,6 +31,18 @@ class MovieLogTextFormField extends StatefulWidget {
   final bool isPassword;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
+
+  /// ViewModel 등 밖에서 내려주는 에러 문구 (null이 아니면 에러 상태)
+  final String? errorText;
+
+  /// 확인 완료 문구 (입력창 아래에 표시)
+  final String? successText;
+
+  /// null이면 로컬 검증 기준, 값이 있으면 true일 때만 체크 아이콘 표시
+  final bool? isVerified;
+
+  /// 입력창 오른쪽에 나란히 놓을 위젯 (예: 중복 확인 버튼)
+  final Widget? trailing;
 
   @override
   State<MovieLogTextFormField> createState() => _MovieLogTextFormFieldState();
@@ -84,48 +100,76 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
           ),
         ),
         const SizedBox(height: 8),
-        ListenableBuilder(
-          listenable: widget.controller,
-          builder: (context, _) {
-            final text = widget.controller.text;
-            final hasText = text.isNotEmpty;
-            final hasError = hasText && widget.validator(text) != null;
-            final isValid = hasText && !hasError;
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ListenableBuilder(
+                listenable: widget.controller,
+                builder: (context, _) {
+                  final text = widget.controller.text;
+                  final hasText = text.isNotEmpty;
+                  final hasError = widget.errorText != null ||
+                      (hasText && widget.validator(text) != null);
+                  final isValid =
+                      !hasError && (widget.isVerified ?? hasText);
 
-            return TextFormField(
-              controller: widget.controller,
-              focusNode: widget.focusNode,
-              keyboardType: widget.keyboardType,
-              textInputAction: widget.textInputAction,
-              obscureText: widget.isPassword && _obscure,
-              validator: widget.validator,
-              onChanged: widget.onChanged,
-              onFieldSubmitted: widget.onFieldSubmitted,
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.black),
-              decoration: InputDecoration(
-                hintText: widget.hint,
-                hintStyle: AppTextStyles.bodySmall,
-                filled: true,
-                fillColor: hasError ? AppColors.errorBg : AppColors.fieldBg,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                suffixIcon: _suffix(hasError: hasError, isValid: isValid),
-                errorStyle: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.error,
-                ),
-                border: _border(),
-                enabledBorder: _border(),
-                focusedBorder: _border(color: AppColors.violet, width: 1.5),
-                errorBorder: _border(color: AppColors.error),
-                focusedErrorBorder:
-                    _border(color: AppColors.error, width: 1.5),
+                  return TextFormField(
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    keyboardType: widget.keyboardType,
+                    textInputAction: widget.textInputAction,
+                    obscureText: widget.isPassword && _obscure,
+                    validator: widget.validator,
+                    onChanged: widget.onChanged,
+                    onFieldSubmitted: widget.onFieldSubmitted,
+                    style: AppTextStyles.bodySmall
+                        .copyWith(color: AppColors.black),
+                    decoration: InputDecoration(
+                      hintText: widget.hint,
+                      hintStyle: AppTextStyles.bodySmall,
+                      errorText: widget.errorText,
+                      filled: true,
+                      fillColor:
+                          hasError ? AppColors.errorBg : AppColors.fieldBg,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      suffixIcon: _suffix(hasError: hasError, isValid: isValid),
+                      errorStyle: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.error,
+                      ),
+                      border: _border(),
+                      enabledBorder: _border(),
+                      focusedBorder:
+                          _border(color: AppColors.violet, width: 1.5),
+                      errorBorder: _border(color: AppColors.error),
+                      focusedErrorBorder:
+                          _border(color: AppColors.error, width: 1.5),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+            if (widget.trailing case final trailing?) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ],
         ),
+        if (widget.successText case final successText?)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              successText,
+              style: AppTextStyles.label.copyWith(
+                color: AppColors.violet,
+                fontSize: 11,
+              ),
+            ),
+          ),
       ],
     );
   }
