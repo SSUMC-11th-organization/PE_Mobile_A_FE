@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../theme/app_colors.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/favorite_genres.dart';
 import '../widgets/profile_header.dart';
@@ -15,10 +17,10 @@ class MyPageScreen extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
-            children: const [
-              ProfileHeader(),
-              SizedBox(height: 24),
-              Row(
+            children: [
+              const ProfileHeader(),
+              const SizedBox(height: 24),
+              const Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: StatItem(label: '본 영화', value: '342')),
@@ -28,8 +30,19 @@ class MyPageScreen extends StatelessWidget {
                   Expanded(child: StatItem(label: '즐겨찾기', value: '58')),
                 ],
               ),
-              SizedBox(height: 24),
-              SizedBox(width: double.infinity, child: FavoriteGenres()),
+              const SizedBox(height: 24),
+              const SizedBox(width: double.infinity, child: FavoriteGenres()),
+              const SizedBox(height: 24),
+              ListTile(
+                tileColor: AppColors.cardBg,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.cardBorder),
+                ),
+                title: const Text('내가 등록한 평점'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/my/ratings'),
+              ),
             ],
           ),
         ),

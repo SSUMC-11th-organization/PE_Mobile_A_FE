@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
+import 'data/services/member_check_service.dart';
+import 'data/services/rating_api_service.dart';
 import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -17,11 +20,19 @@ class MovieLogApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 자체 백엔드 Service 두 개는 Dio 하나를 공유한다 (TMDB Client와는 별개)
+    final movieLogClient = createMovieLogClient();
+
     return MultiProvider(
       providers: [
-        // 상태 없는 Service는 앱 전체에서 하나를 공유한다
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
+        ),
+        Provider<MemberCheckService>(
+          create: (_) => MemberCheckService(movieLogClient),
+        ),
+        Provider<RatingApiService>(
+          create: (_) => RatingApiService(movieLogClient),
         ),
       ],
       child: MaterialApp.router(
