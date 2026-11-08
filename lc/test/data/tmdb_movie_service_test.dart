@@ -59,6 +59,18 @@ void main() {
     expect(request.queryParameters['page'], 1);
   });
 
+  test('최종 요청 주소에는 baseUrl의 /3 버전 경로가 유지된다', () async {
+    final adapter = RecordingAdapter(body: _emptyPage);
+    final service = serviceWith(adapter);
+
+    await service.fetchPopular();
+    await service.discoverMovies(page: 1, genreId: 28);
+    await service.fetchGenres();
+
+    final paths = adapter.requests.map((request) => request.uri.path).toList();
+    expect(paths, ['/3/movie/popular', '/3/discover/movie', '/3/genre/movie/list']);
+  });
+
   test('장르가 없으면 discover는 with_genres를 보내지 않는다', () async {
     final adapter = RecordingAdapter(body: _emptyPage);
 

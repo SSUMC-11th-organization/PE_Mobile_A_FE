@@ -3,19 +3,21 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 class MovieListLoading extends StatelessWidget {
-  const MovieListLoading({super.key});
+  const MovieListLoading({super.key, this.message = '영화를 불러오는 중이에요'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: AppColors.violet),
-          SizedBox(height: 16),
+          const CircularProgressIndicator(color: AppColors.violet),
+          const SizedBox(height: 16),
           Text(
-            '영화를 불러오는 중이에요',
-            style: TextStyle(
+            message,
+            style: const TextStyle(
               fontSize: 14,
               height: 20 / 14,
               color: AppColors.textSecondary,
