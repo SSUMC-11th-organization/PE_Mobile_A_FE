@@ -101,10 +101,7 @@ class _MovieListBody extends StatelessWidget {
     TmdbMovieDto movie,
     MovieListViewModel viewModel,
   ) {
-    context.push(
-      AppRouter.movieDetailLocation(movie.id),
-      extra: MovieDetailArgs(movie: movie, genreNames: viewModel.genreNames),
-    );
+    context.push(AppRouter.movieDetailLocation(movie.id), extra: movie);
   }
 }
 

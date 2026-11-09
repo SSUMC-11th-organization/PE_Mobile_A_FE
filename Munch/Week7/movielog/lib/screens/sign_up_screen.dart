@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
@@ -52,6 +54,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final nickname = value?.trim() ?? '';
     if (nickname.isEmpty) return '닉네임을 입력해주세요.';
     if (nickname.length < 2) return '닉네임은 2자 이상이어야 합니다.';
+    if (nickname.length > 12) return '닉네임은 12자 이하여야 합니다.';
     return null;
   }
 
@@ -67,6 +70,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final password = value ?? '';
     if (password.isEmpty) return '비밀번호를 입력해주세요.';
     if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
+    if (password != password.trim()) return '비밀번호 앞뒤에는 공백을 넣을 수 없습니다.';
+    final hasAllKinds =
+        RegExp(r'[a-z]').hasMatch(password) &&
+        RegExp(r'[A-Z]').hasMatch(password) &&
+        RegExp(r'[0-9]').hasMatch(password) &&
+        RegExp(r'[!@#$%^&*]').hasMatch(password);
+    if (!hasAllKinds) return '비밀번호는 대문자/소문자/숫자/특수문자를 모두 포함해야 합니다.';
     return null;
   }
 
@@ -76,16 +86,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _validatePassword(_passwordController.text) == null &&
       viewModel.isNicknameAvailable &&
       viewModel.isEmailAvailable &&
-      _agreedToTerms;
+      _agreedToTerms &&
+      viewModel.submitStatus != SubmitStatus.submitting;
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid || !_canSubmit(context.read<SignUpViewModel>())) return;
+    final viewModel = context.read<SignUpViewModel>();
+    if (!isValid || !_canSubmit(viewModel)) return;
 
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
-    context.go('/home');
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+    if (!mounted) return;
+
+    final memberId = viewModel.createdMemberId;
+    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
+      context.read<LearningMemberSession>().setMemberId(memberId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId: $memberId)')),
+      );
+      context.go('/movies');
+      return;
+    }
+
+    final message = viewModel.snackbarMessage;
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   static const double _checkButtonHeight = 48;
@@ -216,6 +249,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             validator: _validatePassword,
                             focusNode: _passwordFocusNode,
                             obscurable: true,
+                            errorText: viewModel.passwordErrorText,
+                            onChanged: (_) => viewModel.onPasswordChanged(),
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) {
                               if (_canSubmit(viewModel)) _handleSubmit();
@@ -232,6 +267,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             label: '가입하기',
                             width: double.infinity,
                             height: 52,
+                            isLoading:
+                                viewModel.submitStatus ==
+                                SubmitStatus.submitting,
                             onPressed: _canSubmit(viewModel)
                                 ? _handleSubmit
                                 : null,

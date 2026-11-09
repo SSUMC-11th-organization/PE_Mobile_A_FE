@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/data/models/rating_dto.dart';
+import 'package:movielog/data/models/rating_request.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 
@@ -63,7 +64,7 @@ void main() {
 
       final ratings = await service.fetchMyRatings(1);
 
-      expect(requestedPath, '/v5/members/1/ratings');
+      expect(requestedPath, '/v6/members/1/ratings');
       expect(ratings.single.movieId, 550);
     });
 
@@ -89,6 +90,77 @@ void main() {
       expect(await messageFor(404), '존재하지 않는 회원입니다.');
       expect(await messageFor(500), '평점을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
     });
+  });
+
+  group('RatingApiService 쓰기', () {
+    test('등록은 201을 성공으로 보고 빈 코멘트는 생략한다', () async {
+      late RequestOptions request;
+      final service = RatingApiService(
+        stubDio((options) {
+          request = options;
+          return (
+            201,
+            {
+              'isSuccess': true,
+              'code': 'COMMON201',
+              'message': 'ok',
+              'result': null,
+            },
+          );
+        }),
+      );
+
+      await service.createRating(
+        memberId: 7,
+        request: const CreateRatingRequest(
+          movieId: 550,
+          score: 4,
+          comment: '  ',
+        ),
+      );
+
+      expect(request.method, 'POST');
+      expect(request.path, '/v6/members/7/ratings');
+      expect(request.data, {'movieId': 550, 'score': 4});
+    });
+
+    test('수정은 comment가 null이어도 body에 명시한다', () async {
+      late RequestOptions request;
+      final service = RatingApiService(
+        stubDio((options) {
+          request = options;
+          return (200, {'isSuccess': true, 'code': 'C', 'message': 'ok'});
+        }),
+      );
+
+      await service.updateRating(memberId: 7, ratingId: 3, score: 2);
+
+      expect(request.method, 'PATCH');
+      expect(request.path, '/v6/members/7/ratings/3');
+      expect(request.data, {'score': 2, 'comment': null});
+    });
+
+    test('삭제는 204를 성공으로 처리한다', () async {
+      final service = RatingApiService(stubDio((_) => (204, null)));
+      await service.deleteRating(memberId: 7, ratingId: 3);
+    });
+
+    test('공통 응답이 아닌 오류 body에도 기본 문구로 처리한다', () async {
+      final service = RatingApiService(stubDio((_) => (500, 'bad gateway')));
+      try {
+        await service.deleteRating(memberId: 7, ratingId: 3);
+        fail('DioException이 발생해야 합니다.');
+      } on DioException catch (error) {
+        expect(writeErrorMessage(error), '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        expect(shouldRefreshAfterRatingError(error), isFalse);
+      }
+    });
+  });
+
+  test('validateServerScore는 1~5 정수만 허용한다', () {
+    expect(validateServerScore(5), 5);
+    expect(() => validateServerScore(0), throwsArgumentError);
+    expect(() => validateServerScore(3.5), throwsArgumentError);
   });
 
   group('TmdbMovieService.findMovieById', () {

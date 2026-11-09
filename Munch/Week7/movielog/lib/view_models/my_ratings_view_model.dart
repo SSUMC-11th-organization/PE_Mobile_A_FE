@@ -6,11 +6,6 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 
-const int sampleMemberId = int.fromEnvironment(
-  'RATINGS_MEMBER_ID',
-  defaultValue: 1,
-);
-
 enum MyRatingsLoadStatus { idle, loading, success, empty, error }
 
 class MyRatingsViewModel extends ChangeNotifier {
@@ -26,11 +21,13 @@ class MyRatingsViewModel extends ChangeNotifier {
   List<RatingWithMovie> ratings = const [];
   MyRatingsLoadStatus status = MyRatingsLoadStatus.idle;
   String? message;
+  String? refreshWarning;
 
   Future<void> load() async {
     final version = ++_requestVersion;
     status = MyRatingsLoadStatus.loading;
     message = null;
+    refreshWarning = null;
     notifyListeners();
 
     bool isStale() => _disposed || version != _requestVersion;
@@ -72,6 +69,57 @@ class MyRatingsViewModel extends ChangeNotifier {
       message = writeMyRatingsErrorMessage(error);
     }
     if (!isStale()) notifyListeners();
+  }
+
+  Future<void> _refreshAfterWrite() async {
+    if (_disposed) return;
+    await load();
+    if (!_disposed && status == MyRatingsLoadStatus.error) {
+      refreshWarning = '저장은 완료됐지만 목록을 불러오지 못했습니다. 조회만 다시 시도해 주세요.';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _handleWriteError(DioException error) async {
+    if (_disposed) return;
+    message = writeErrorMessage(error);
+    notifyListeners();
+    if (shouldRefreshAfterRatingError(error)) {
+      await load();
+      if (!_disposed && status != MyRatingsLoadStatus.error) {
+        message = writeErrorMessage(error);
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> updateRating({
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    try {
+      await _service.updateRating(
+        memberId: memberId,
+        ratingId: ratingId,
+        score: score,
+        comment: comment,
+      );
+    } on DioException catch (error) {
+      await _handleWriteError(error);
+      rethrow;
+    }
+    await _refreshAfterWrite();
+  }
+
+  Future<void> deleteRating(int ratingId) async {
+    try {
+      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+    } on DioException catch (error) {
+      await _handleWriteError(error);
+      rethrow;
+    }
+    await _refreshAfterWrite();
   }
 
   @override

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/rating_dto.dart';
 import '../data/models/rating_with_movie.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../view_models/my_ratings_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
+import '../widgets/rating_dialog.dart';
 import '../widgets/tmdb_poster_image.dart';
 
 class MyRatingsScreen extends StatelessWidget {
@@ -29,7 +31,10 @@ class MyRatingsScreen extends StatelessWidget {
               MyRatingsLoadStatus.loading => const _RatingsLoading(),
               MyRatingsLoadStatus.empty => const _RatingsEmpty(),
               MyRatingsLoadStatus.error => _RatingsError(
-                message: viewModel.message ?? '평점을 불러오지 못했습니다.',
+                message:
+                    viewModel.refreshWarning ??
+                    viewModel.message ??
+                    '평점을 불러오지 못했습니다.',
                 onRetry: viewModel.load,
               ),
               MyRatingsLoadStatus.success => _RatingsList(
@@ -162,6 +167,151 @@ class _RatingsNotice extends StatelessWidget {
   }
 }
 
+Future<void> onEditPressed(BuildContext context, RatingDto rating) async {
+  final viewModel = context.read<MyRatingsViewModel>();
+  await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => RatingDialog(
+      initialScore: rating.score,
+      initialComment: rating.comment,
+      onSubmit: (score, comment) => viewModel.updateRating(
+        ratingId: rating.ratingId,
+        score: score,
+        comment: comment,
+      ),
+    ),
+  );
+}
+
+Future<void> onDeletePressed(BuildContext context, RatingDto rating) async {
+  final viewModel = context.read<MyRatingsViewModel>();
+  await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _DeleteRatingDialog(
+      onConfirm: () => viewModel.deleteRating(rating.ratingId),
+    ),
+  );
+}
+
+class _DeleteRatingDialog extends StatefulWidget {
+  const _DeleteRatingDialog({required this.onConfirm});
+
+  final Future<void> Function() onConfirm;
+
+  @override
+  State<_DeleteRatingDialog> createState() => _DeleteRatingDialogState();
+}
+
+class _DeleteRatingDialogState extends State<_DeleteRatingDialog> {
+  bool _isDeleting = false;
+
+  Future<void> _onConfirm() async {
+    setState(() => _isDeleting = true);
+    try {
+      await widget.onConfirm();
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDeleting,
+      child: Dialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '평점을 삭제할까요?',
+                style: AppTextStyles.titleMedium.copyWith(fontSize: 20),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '삭제한 평점은 복구할 수 없습니다.',
+                style: AppTextStyles.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: MovieLogButton(
+                      label: '취소',
+                      tonal: true,
+                      width: double.infinity,
+                      height: 48,
+                      onPressed: _isDeleting
+                          ? null
+                          : () => Navigator.pop(context, false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: MovieLogButton(
+                      label: '삭제',
+                      width: double.infinity,
+                      height: 48,
+                      isLoading: _isDeleting,
+                      onPressed: _isDeleting ? null : _onConfirm,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 64,
+      height: 36,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: foreground,
+          backgroundColor: background,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        child: Text(label),
+      ),
+    );
+  }
+}
+
 class RatingCard extends StatelessWidget {
   const RatingCard({super.key, required this.entry});
 
@@ -242,6 +392,24 @@ class RatingCard extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              _CardActionButton(
+                label: '수정',
+                foreground: AppColors.violet,
+                background: AppColors.violetContainer,
+                onPressed: () => onEditPressed(context, rating),
+              ),
+              const SizedBox(height: 8),
+              _CardActionButton(
+                label: '삭제',
+                foreground: AppColors.error,
+                background: AppColors.dangerContainer,
+                onPressed: () => onDeletePressed(context, rating),
+              ),
+            ],
           ),
         ],
       ),

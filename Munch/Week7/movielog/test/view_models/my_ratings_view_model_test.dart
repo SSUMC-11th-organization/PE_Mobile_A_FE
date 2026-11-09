@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
 
@@ -14,7 +15,7 @@ void main() {
   setUp(() {
     ratingService = FakeRatingApiService();
     movieService = FakeTmdbMovieService();
-    viewModel = MyRatingsViewModel(ratingService, movieService, sampleMemberId);
+    viewModel = MyRatingsViewModel(ratingService, movieService, 1);
   });
 
   tearDown(() => viewModel.dispose());
@@ -83,5 +84,47 @@ void main() {
     await viewModel.load();
     expect(movieService.findMovieCalls, [550, 13, 13]);
     expect(viewModel.message, isNull);
+  });
+
+  test('수정 성공 후 GET만 실패하면 예외 없이 재조회 안내를 남긴다', () async {
+    ratingService.failStatus = 500;
+
+    await viewModel.updateRating(ratingId: 1, score: 3, comment: '수정');
+
+    expect(ratingService.updates.single.comment, '수정');
+    expect(viewModel.status, MyRatingsLoadStatus.error);
+    expect(viewModel.refreshWarning, contains('저장은 완료'));
+
+    ratingService.failStatus = null;
+    await viewModel.load();
+    expect(viewModel.refreshWarning, isNull);
+  });
+
+  test('400 쓰기 실패는 다시 던지고 재조회하지 않는다', () async {
+    ratingService.writeFailure = (
+      status: 400,
+      code: 'COMMON400',
+      message: '별점은 5점 이하여야 합니다.',
+    );
+
+    await expectLater(
+      viewModel.updateRating(ratingId: 1, score: 3),
+      throwsA(isA<DioException>()),
+    );
+    expect(viewModel.message, '별점은 5점 이하여야 합니다.');
+    expect(ratingService.requestedMemberIds, isEmpty);
+  });
+
+  test('403·404 쓰기 실패는 다시 던지고 목록을 재조회한다', () async {
+    for (final (status, code) in [(403, 'COMMON403'), (404, 'COMMON404')]) {
+      ratingService.requestedMemberIds.clear();
+      ratingService.writeFailure = (status: status, code: code, message: 'x');
+
+      await expectLater(
+        viewModel.deleteRating(1),
+        throwsA(isA<DioException>()),
+      );
+      expect(ratingService.requestedMemberIds, [1]);
+    }
   });
 }

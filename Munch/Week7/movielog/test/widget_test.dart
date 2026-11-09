@@ -6,17 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/router/app_router.dart';
 
-import 'fakes/fake_member_check_service.dart';
+import 'fakes/fake_sign_up_service.dart';
 import 'fakes/fake_tmdb_movie_service.dart';
 
 Future<void> pumpSignUpScreen(
   WidgetTester tester, {
-  FakeMemberCheckService? checkService,
+  FakeSignUpService? checkService,
 }) async {
   await tester.pumpWidget(
     MovieLogApp(
       movieService: FakeTmdbMovieService(),
-      memberCheckService: checkService ?? FakeMemberCheckService(),
+      signUpService: checkService ?? FakeSignUpService(),
     ),
   );
   AppRouter.router.go('/register');
@@ -59,7 +59,7 @@ void main() {
       find.byType(TextFormField).at(1),
       'movie@example.com',
     );
-    await tester.enterText(find.byType(TextFormField).at(2), 'password1234');
+    await tester.enterText(find.byType(TextFormField).at(2), 'Password1234!');
     await tester.pump();
 
     expect(
@@ -86,13 +86,13 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, '가입하기'));
     await tester.pump();
 
-    expect(find.text('회원가입이 완료되었습니다.'), findsOneWidget);
+    expect(find.text('회원가입이 완료되었습니다. (memberId: 7)'), findsOneWidget);
   });
 
   testWidgets('중복 닉네임은 에러로 표시되고, 같은 값을 다시 입력하면 즉시 에러로 돌아온다', (
     WidgetTester tester,
   ) async {
-    final service = FakeMemberCheckService(duplicatedValues: {'영화광'});
+    final service = FakeSignUpService(duplicatedValues: {'영화광'});
     await pumpSignUpScreen(tester, checkService: service);
 
     final nicknameField = find.byType(TextFormField).at(0);
@@ -121,7 +121,7 @@ void main() {
   });
 
   testWidgets('통신 중에는 버튼에 인디케이터만 보이고 누를 수 없다', (WidgetTester tester) async {
-    final service = FakeMemberCheckService()..pending = Completer<void>();
+    final service = FakeSignUpService()..pending = Completer<void>();
     await pumpSignUpScreen(tester, checkService: service);
 
     await tester.enterText(find.byType(TextFormField).at(0), '무비러버');

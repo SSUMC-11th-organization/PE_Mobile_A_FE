@@ -10,6 +10,7 @@ class MovieLogButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.height = 44,
+    this.tonal = false,
   });
 
   final String label;
@@ -17,6 +18,7 @@ class MovieLogButton extends StatelessWidget {
   final bool isLoading;
   final double? width;
   final double height;
+  final bool tonal;
 
   bool get _disabled => isLoading || onPressed == null;
 
@@ -28,12 +30,16 @@ class MovieLogButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: _disabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.violet,
-          foregroundColor: AppColors.white,
+          backgroundColor: tonal ? AppColors.violetContainer : AppColors.violet,
+          foregroundColor: tonal ? AppColors.violet : AppColors.white,
           disabledBackgroundColor: isLoading
               ? AppColors.gray
+              : tonal
+              ? AppColors.violetContainer.withValues(alpha: 0.5)
               : AppColors.violet.withValues(alpha: 0.3),
-          disabledForegroundColor: AppColors.white,
+          disabledForegroundColor: tonal
+              ? AppColors.violet.withValues(alpha: 0.5)
+              : AppColors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           shape: RoundedRectangleBorder(

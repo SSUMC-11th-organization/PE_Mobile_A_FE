@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 abstract final class AppColors {
   static const violet = Color(0xFF6750A4);
+  static const violetContainer = Color(0xFFEFE9F8);
 
   static const warmWhite = Color(0xFFFAF9F5);
   static const white = Color(0xFFFFFFFF);
@@ -11,6 +12,7 @@ abstract final class AppColors {
 
   static const error = Color(0xFFB3261E);
   static const errorContainer = Color(0xFFF9DEDC);
+  static const dangerContainer = Color(0xFFFFF0EF);
   static const success = Color(0xFF2E7D32);
   static const info = Color(0xFF1565C0);
   static const fieldFill = Color(0xFFF3EEF9);

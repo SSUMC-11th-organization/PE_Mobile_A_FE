@@ -1,20 +1,64 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/data/models/create_member_request.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 
-import '../fakes/fake_member_check_service.dart';
+import '../fakes/fake_sign_up_service.dart';
 
 void main() {
-  late FakeMemberCheckService service;
+  late FakeSignUpService service;
   late SignUpViewModel viewModel;
 
   setUp(() {
-    service = FakeMemberCheckService(duplicatedValues: {'영화광', 'dup@umc.com'});
+    service = FakeSignUpService(duplicatedValues: {'영화광', 'dup@umc.com'});
     viewModel = SignUpViewModel(service);
   });
 
   tearDown(() => viewModel.dispose());
+
+  const request = CreateMemberRequest(
+    email: 'movie@umc.com',
+    password: 'Password1!',
+    nickname: '무비러버',
+  );
+
+  test('가입 성공 시 memberId를 저장하고, 제출 중 재호출은 무시한다', () async {
+    service.signUpPending = Completer<void>();
+    final future = viewModel.submit(request);
+    await viewModel.submit(request);
+    expect(viewModel.submitStatus, SubmitStatus.submitting);
+    expect(service.signUpCalls, 1);
+
+    service.signUpPending!.complete();
+    await future;
+    expect(viewModel.submitStatus, SubmitStatus.success);
+    expect(viewModel.createdMemberId, 7);
+  });
+
+  test('비밀번호 400은 필드 오류, 그 외 400과 409는 Snackbar 오류다', () async {
+    service
+      ..signUpFailStatus = 400
+      ..signUpFailMessage = '비밀번호는 8자 이상이어야 합니다.';
+    await viewModel.submit(request);
+    expect(viewModel.passwordErrorText, '비밀번호는 8자 이상이어야 합니다.');
+    expect(viewModel.snackbarMessage, isNull);
+
+    viewModel.onPasswordChanged();
+    expect(viewModel.passwordErrorText, isNull);
+
+    service.signUpFailMessage = '잘못된 요청입니다.';
+    await viewModel.submit(request);
+    expect(viewModel.passwordErrorText, isNull);
+    expect(viewModel.snackbarMessage, '잘못된 요청입니다.');
+
+    service
+      ..signUpFailStatus = 409
+      ..signUpFailMessage = '이미 사용 중인 이메일입니다.';
+    await viewModel.submit(request);
+    expect(viewModel.submitStatus, SubmitStatus.error);
+    expect(viewModel.snackbarMessage, '이미 사용 중인 이메일입니다.');
+  });
 
   test('사용 가능한 닉네임이면 available', () async {
     viewModel.onNicknameChanged('무비러버');

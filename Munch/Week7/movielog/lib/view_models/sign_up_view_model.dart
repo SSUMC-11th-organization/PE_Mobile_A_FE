@@ -1,14 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../data/services/member_check_service.dart';
+import '../data/models/create_member_request.dart';
+import '../data/services/sign_up_service.dart';
 
 enum CheckStatus { idle, checking, available, duplicated, error }
+
+enum SubmitStatus { idle, submitting, success, error }
 
 class SignUpViewModel extends ChangeNotifier {
   SignUpViewModel(this._service);
 
-  final MemberCheckService _service;
+  final SignUpService _service;
 
   bool _disposed = false;
 
@@ -30,6 +33,7 @@ class SignUpViewModel extends ChangeNotifier {
     if (trimmed == _currentNickname) return;
 
     _currentNickname = trimmed;
+    snackbarMessage = null;
     _nicknameRequestVersion++; // 기다리던 이전 요청의 응답을 무효화한다.
 
     if (_duplicatedNickname != null && trimmed == _duplicatedNickname) {
@@ -97,6 +101,7 @@ class SignUpViewModel extends ChangeNotifier {
     if (trimmed == _currentEmail) return;
 
     _currentEmail = trimmed;
+    snackbarMessage = null;
     _emailRequestVersion++;
 
     if (_duplicatedEmail != null && trimmed == _duplicatedEmail) {
@@ -140,6 +145,49 @@ class SignUpViewModel extends ChangeNotifier {
       if (isStale()) return;
       emailCheckStatus = CheckStatus.error;
       emailErrorText = _networkErrorMessage;
+    }
+    _notify();
+  }
+
+  SubmitStatus submitStatus = SubmitStatus.idle;
+  int? createdMemberId;
+  String? passwordErrorText;
+  String? snackbarMessage;
+
+  void onPasswordChanged() {
+    passwordErrorText = null;
+    _notify();
+  }
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (submitStatus == SubmitStatus.submitting) return;
+
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    _notify();
+
+    try {
+      final response = await _service.signUp(request);
+      if (_disposed) return;
+      final id = response.result?.memberId;
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      if (_disposed) return;
+      submitStatus = SubmitStatus.error;
+      final message = writeSignUpErrorMessage(error);
+      if (error.response?.statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+      }
+    } on StateError {
+      if (_disposed) return;
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
     }
     _notify();
   }

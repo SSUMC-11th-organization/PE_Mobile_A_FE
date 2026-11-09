@@ -18,10 +18,7 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   static void _openDetail(BuildContext context, TmdbMovieDto movie) {
-    context.push(
-      AppRouter.movieDetailLocation(movie.id),
-      extra: MovieDetailArgs(movie: movie),
-    );
+    context.push(AppRouter.movieDetailLocation(movie.id), extra: movie);
   }
 
   @override
