@@ -23,6 +23,27 @@ class MyRatingsViewModel extends ChangeNotifier {
   String? message;
   String? refreshWarning;
 
+  final Set<int> selectedRatingIds = {};
+  bool isSelectionMode = false;
+  bool isDeletingSelected = false;
+  int failedDeleteCount = 0;
+
+  void startSelection() {
+    isSelectionMode = true;
+    notifyListeners();
+  }
+
+  void cancelSelection() {
+    isSelectionMode = false;
+    selectedRatingIds.clear();
+    notifyListeners();
+  }
+
+  void toggleSelected(int ratingId) {
+    if (!selectedRatingIds.remove(ratingId)) selectedRatingIds.add(ratingId);
+    notifyListeners();
+  }
+
   Future<void> load() async {
     final version = ++_requestVersion;
     status = MyRatingsLoadStatus.loading;
@@ -120,6 +141,38 @@ class MyRatingsViewModel extends ChangeNotifier {
       rethrow;
     }
     await _refreshAfterWrite();
+  }
+
+  Future<void> deleteSelectedRatings() async {
+    if (isDeletingSelected || selectedRatingIds.isEmpty) return;
+    isDeletingSelected = true;
+    notifyListeners();
+    var failed = 0;
+    try {
+      for (final ratingId in selectedRatingIds.toList()) {
+        try {
+          await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+          selectedRatingIds.remove(ratingId);
+        } on DioException {
+          failed++;
+        }
+      }
+    } finally {
+      isDeletingSelected = false;
+      if (!_disposed) notifyListeners();
+    }
+    await _refreshAfterWrite();
+    if (_disposed) return;
+    failedDeleteCount = failed;
+    if (status == MyRatingsLoadStatus.success) {
+      final existingIds = ratings.map((entry) => entry.rating.ratingId).toSet();
+      selectedRatingIds.retainWhere(existingIds.contains);
+    }
+    if (selectedRatingIds.isEmpty) isSelectionMode = false;
+    if (failed > 0) {
+      message = '$failed개 항목을 삭제하지 못했습니다. 선택된 항목을 다시 확인해 주세요.';
+    }
+    notifyListeners();
   }
 
   @override

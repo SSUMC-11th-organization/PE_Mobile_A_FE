@@ -143,147 +143,151 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     final viewModel = context.watch<SignUpViewModel>();
 
-    return Scaffold(
-      appBar: const CommonAppBar(title: '회원가입', centerTitle: true),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 700;
+    return PopScope(
+      canPop: viewModel.submitStatus != SubmitStatus.submitting,
+      child: Scaffold(
+        appBar: const CommonAppBar(title: '회원가입', centerTitle: true),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 700;
 
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isWide ? 560 : double.infinity,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Form(
-                      key: _formKey,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _SignUpIntro(),
-                          const SizedBox(height: 40),
-                          MovieLogTextFormField(
-                            label: '닉네임',
-                            hintText: '닉네임을 입력해주세요',
-                            controller: _nicknameController,
-                            validator: _validateNickname,
-                            textInputAction: TextInputAction.next,
-                            onChanged: viewModel.onNicknameChanged,
-                            onFieldSubmitted: (_) =>
-                                _emailFocusNode.requestFocus(),
-                            errorText: viewModel.nicknameErrorText,
-                            isConfirmed: viewModel.isNicknameAvailable,
-                            helperText: _checkHelperText(
-                              viewModel.nicknameCheckStatus,
-                              '닉네임',
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isWide ? 560 : double.infinity,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Form(
+                        key: _formKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _SignUpIntro(),
+                            const SizedBox(height: 40),
+                            MovieLogTextFormField(
+                              label: '닉네임',
+                              hintText: '닉네임을 입력해주세요',
+                              controller: _nicknameController,
+                              validator: _validateNickname,
+                              textInputAction: TextInputAction.next,
+                              onChanged: viewModel.onNicknameChanged,
+                              onFieldSubmitted: (_) =>
+                                  _emailFocusNode.requestFocus(),
+                              errorText: viewModel.nicknameErrorText,
+                              isConfirmed: viewModel.isNicknameAvailable,
+                              helperText: _checkHelperText(
+                                viewModel.nicknameCheckStatus,
+                                '닉네임',
+                              ),
+                              helperColor: _checkHelperColor(
+                                viewModel.nicknameCheckStatus,
+                              ),
+                              trailing: MovieLogButton(
+                                label: '중복 확인',
+                                height: _checkButtonHeight,
+                                isLoading:
+                                    viewModel.nicknameCheckStatus ==
+                                    CheckStatus.checking,
+                                onPressed:
+                                    viewModel.canCheckNickname &&
+                                        _validateNickname(
+                                              _nicknameController.text,
+                                            ) ==
+                                            null
+                                    ? () => viewModel.checkNickname(
+                                        _nicknameController.text,
+                                      )
+                                    : null,
+                              ),
                             ),
-                            helperColor: _checkHelperColor(
-                              viewModel.nicknameCheckStatus,
+                            const SizedBox(height: 16),
+                            MovieLogTextFormField(
+                              label: '이메일',
+                              hintText: '이메일 주소를 입력해주세요',
+                              controller: _emailController,
+                              validator: _validateEmail,
+                              focusNode: _emailFocusNode,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              onChanged: viewModel.onEmailChanged,
+                              onFieldSubmitted: (_) =>
+                                  _passwordFocusNode.requestFocus(),
+                              errorText: viewModel.emailErrorText,
+                              isConfirmed: viewModel.isEmailAvailable,
+                              helperText: _checkHelperText(
+                                viewModel.emailCheckStatus,
+                                '이메일',
+                              ),
+                              helperColor: _checkHelperColor(
+                                viewModel.emailCheckStatus,
+                              ),
+                              trailing: MovieLogButton(
+                                label: '중복 확인',
+                                height: _checkButtonHeight,
+                                isLoading:
+                                    viewModel.emailCheckStatus ==
+                                    CheckStatus.checking,
+                                onPressed:
+                                    viewModel.canCheckEmail &&
+                                        _validateEmail(_emailController.text) ==
+                                            null
+                                    ? () => viewModel.checkEmail(
+                                        _emailController.text,
+                                      )
+                                    : null,
+                              ),
                             ),
-                            trailing: MovieLogButton(
-                              label: '중복 확인',
-                              height: _checkButtonHeight,
+                            const SizedBox(height: 16),
+                            MovieLogTextFormField(
+                              label: '비밀번호',
+                              hintText: '비밀번호를 입력해주세요',
+                              controller: _passwordController,
+                              validator: _validatePassword,
+                              focusNode: _passwordFocusNode,
+                              obscurable: true,
+                              errorText: viewModel.passwordErrorText,
+                              onChanged: (_) => viewModel.onPasswordChanged(),
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) {
+                                if (_canSubmit(viewModel)) _handleSubmit();
+                              },
+                            ),
+                            const SizedBox(height: 40),
+                            _TermsAgreement(
+                              value: _agreedToTerms,
+                              onChanged: (value) =>
+                                  setState(() => _agreedToTerms = value),
+                            ),
+                            const SizedBox(height: 24),
+                            MovieLogButton(
+                              label: '가입하기',
+                              width: double.infinity,
+                              height: 52,
                               isLoading:
-                                  viewModel.nicknameCheckStatus ==
-                                  CheckStatus.checking,
-                              onPressed:
-                                  viewModel.canCheckNickname &&
-                                      _validateNickname(
-                                            _nicknameController.text,
-                                          ) ==
-                                          null
-                                  ? () => viewModel.checkNickname(
-                                      _nicknameController.text,
-                                    )
+                                  viewModel.submitStatus ==
+                                  SubmitStatus.submitting,
+                              onPressed: _canSubmit(viewModel)
+                                  ? _handleSubmit
                                   : null,
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          MovieLogTextFormField(
-                            label: '이메일',
-                            hintText: '이메일 주소를 입력해주세요',
-                            controller: _emailController,
-                            validator: _validateEmail,
-                            focusNode: _emailFocusNode,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            onChanged: viewModel.onEmailChanged,
-                            onFieldSubmitted: (_) =>
-                                _passwordFocusNode.requestFocus(),
-                            errorText: viewModel.emailErrorText,
-                            isConfirmed: viewModel.isEmailAvailable,
-                            helperText: _checkHelperText(
-                              viewModel.emailCheckStatus,
-                              '이메일',
-                            ),
-                            helperColor: _checkHelperColor(
-                              viewModel.emailCheckStatus,
-                            ),
-                            trailing: MovieLogButton(
-                              label: '중복 확인',
-                              height: _checkButtonHeight,
-                              isLoading:
-                                  viewModel.emailCheckStatus ==
-                                  CheckStatus.checking,
-                              onPressed:
-                                  viewModel.canCheckEmail &&
-                                      _validateEmail(_emailController.text) ==
-                                          null
-                                  ? () => viewModel.checkEmail(
-                                      _emailController.text,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          MovieLogTextFormField(
-                            label: '비밀번호',
-                            hintText: '비밀번호를 입력해주세요',
-                            controller: _passwordController,
-                            validator: _validatePassword,
-                            focusNode: _passwordFocusNode,
-                            obscurable: true,
-                            errorText: viewModel.passwordErrorText,
-                            onChanged: (_) => viewModel.onPasswordChanged(),
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) {
-                              if (_canSubmit(viewModel)) _handleSubmit();
-                            },
-                          ),
-                          const SizedBox(height: 40),
-                          _TermsAgreement(
-                            value: _agreedToTerms,
-                            onChanged: (value) =>
-                                setState(() => _agreedToTerms = value),
-                          ),
-                          const SizedBox(height: 24),
-                          MovieLogButton(
-                            label: '가입하기',
-                            width: double.infinity,
-                            height: 52,
-                            isLoading:
-                                viewModel.submitStatus ==
-                                SubmitStatus.submitting,
-                            onPressed: _canSubmit(viewModel)
-                                ? _handleSubmit
-                                : null,
-                          ),
-                          const SizedBox(height: 24),
-                          const _LoginPrompt(),
-                        ],
+                            const SizedBox(height: 24),
+                            const _LoginPrompt(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

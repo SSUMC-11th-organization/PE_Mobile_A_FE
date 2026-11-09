@@ -28,6 +28,8 @@ class FakeRatingApiService extends RatingApiService {
   final createdRequests = <CreateRatingRequest>[];
   final updates = <({int ratingId, int score, String? comment})>[];
   final deletedRatingIds = <int>[];
+  Set<int> failingDeleteIds = {};
+  Completer<void>? deletePending;
 
   void _throwIfWriteFails() {
     final failure = writeFailure;
@@ -74,7 +76,14 @@ class FakeRatingApiService extends RatingApiService {
     required int memberId,
     required int ratingId,
   }) async {
+    await deletePending?.future;
     _throwIfWriteFails();
+    if (failingDeleteIds.contains(ratingId)) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/v6/members/ratings/$ratingId'),
+        type: DioExceptionType.connectionError,
+      );
+    }
     deletedRatingIds.add(ratingId);
     ratings = ratings.where((r) => r.ratingId != ratingId).toList();
   }

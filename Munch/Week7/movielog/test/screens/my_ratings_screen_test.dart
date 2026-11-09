@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/router/app_router.dart';
 import 'package:movielog/view_models/learning_member_session.dart';
+import 'package:movielog/widgets/loading_overlay.dart';
 
 import '../fakes/fake_sign_up_service.dart';
 import '../fakes/fake_rating_api_service.dart';
@@ -98,6 +99,77 @@ void main() {
 
     expect(find.text('영화 #13'), findsOneWidget);
     expect(find.text('영화 정보 없음'), findsOneWidget);
+  });
+
+  testWidgets('편집 모드: 선택 수 표시, 선택해야 삭제 활성화, 취소하면 복귀', (tester) async {
+    await pumpProfile(
+      tester,
+      FakeRatingApiService(ratings: [ratingFixture(1, 13)]),
+    );
+    await openMyRatings(tester);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('편집'));
+    await tester.pump();
+    expect(find.text('0개 선택됨'), findsOneWidget);
+    expect(find.text('수정'), findsNothing);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, '선택한 0개 삭제'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    expect(find.text('1개 선택됨'), findsOneWidget);
+    expect(find.text('선택한 1개 삭제'), findsOneWidget);
+
+    await tester.tap(find.text('취소'));
+    await tester.pump();
+    expect(find.text('편집'), findsOneWidget);
+    expect(find.text('수정'), findsOneWidget);
+  });
+
+  testWidgets('다중 삭제: Dialog는 바로 닫히고 오버레이 후 일부 실패를 안내한다', (tester) async {
+    final service = FakeRatingApiService(
+      ratings: [ratingFixture(1, 13), ratingFixture(2, 14)],
+    )..failingDeleteIds = {2};
+    await pumpProfile(tester, service);
+    await openMyRatings(tester);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('편집'));
+    await tester.pump();
+    await tester.tap(find.byType(Checkbox).at(0));
+    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.pump();
+
+    service.deletePending = Completer<void>();
+    await tester.tap(find.text('선택한 2개 삭제'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '삭제'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(
+      tester.widget<LoadingOverlay>(find.byType(LoadingOverlay)).isLoading,
+      isTrue,
+    );
+
+    service.deletePending!.complete();
+    await tester.pumpAndSettle();
+
+    expect(service.deletedRatingIds, [1]);
+    expect(find.text('1개 항목을 삭제하지 못했습니다.'), findsOneWidget);
+    expect(find.text('1개 선택됨'), findsOneWidget);
+    expect(
+      tester.widget<LoadingOverlay>(find.byType(LoadingOverlay)).isLoading,
+      isFalse,
+    );
   });
 
   testWidgets('가입 전에는 회원가입 안내를 보여주고 조회하지 않는다', (tester) async {

@@ -86,6 +86,39 @@ void main() {
     expect(viewModel.message, isNull);
   });
 
+  test('다중 삭제 일부 실패 시 성공 항목만 사라지고 실패 항목은 선택을 유지한다', () async {
+    ratingService.ratings = [ratingFixture(1, 13), ratingFixture(2, 14)];
+    ratingService.failingDeleteIds = {2};
+    await viewModel.load();
+    viewModel
+      ..startSelection()
+      ..toggleSelected(1)
+      ..toggleSelected(2);
+
+    await viewModel.deleteSelectedRatings();
+
+    expect(ratingService.deletedRatingIds, [1]);
+    expect(viewModel.ratings.single.rating.ratingId, 2);
+    expect(viewModel.selectedRatingIds, {2});
+    expect(viewModel.isSelectionMode, isTrue);
+    expect(viewModel.failedDeleteCount, 1);
+    expect(viewModel.isDeletingSelected, isFalse);
+  });
+
+  test('다중 삭제가 모두 성공하면 선택 모드를 끝낸다', () async {
+    ratingService.ratings = [ratingFixture(1, 13)];
+    await viewModel.load();
+    viewModel
+      ..startSelection()
+      ..toggleSelected(1);
+
+    await viewModel.deleteSelectedRatings();
+
+    expect(viewModel.isSelectionMode, isFalse);
+    expect(viewModel.status, MyRatingsLoadStatus.empty);
+    expect(viewModel.failedDeleteCount, 0);
+  });
+
   test('수정 성공 후 GET만 실패하면 예외 없이 재조회 안내를 남긴다', () async {
     ratingService.failStatus = 500;
 

@@ -89,6 +89,42 @@ void main() {
     expect(find.text('회원가입이 완료되었습니다. (memberId: 7)'), findsOneWidget);
   });
 
+  testWidgets('회원가입 제출 중에는 화면을 벗어날 수 없고 끝나면 해제된다', (WidgetTester tester) async {
+    final service = FakeSignUpService()
+      ..signUpPending = Completer<void>()
+      ..signUpFailStatus = 409
+      ..signUpFailMessage = '이미 사용 중인 이메일입니다.';
+    await pumpSignUpScreen(tester, checkService: service);
+
+    await tester.enterText(find.byType(TextFormField).at(0), '무비러버');
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      'movie@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(2), 'Password1234!');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(0));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, '중복 확인').at(1));
+    await tester.pump();
+
+    bool canPop() => (tester.widget(
+      find.byWidgetPredicate((widget) => widget is PopScope).first,
+    ) as PopScope).canPop;
+
+    expect(canPop(), isTrue);
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, '가입하기'));
+    await tester.tap(find.widgetWithText(ElevatedButton, '가입하기'));
+    await tester.pump();
+    expect(canPop(), isFalse);
+
+    service.signUpPending!.complete();
+    await tester.pump();
+    expect(canPop(), isTrue);
+    expect(find.text('이미 사용 중인 이메일입니다.'), findsOneWidget);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('중복 닉네임은 에러로 표시되고, 같은 값을 다시 입력하면 즉시 에러로 돌아온다', (
     WidgetTester tester,
   ) async {

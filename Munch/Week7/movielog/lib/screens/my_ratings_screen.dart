@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../view_models/my_ratings_view_model.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/loading_overlay.dart';
 import '../widgets/movielog_button.dart';
 import '../widgets/rating_dialog.dart';
 import '../widgets/tmdb_poster_image.dart';
@@ -17,34 +18,39 @@ class MyRatingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CommonAppBar(
-        title: '내가 등록한 평점',
-        centerTitle: true,
-        onBack: () => context.pop(),
-      ),
-      body: SafeArea(
-        child: Consumer<MyRatingsViewModel>(
-          builder: (context, viewModel, child) {
-            return switch (viewModel.status) {
-              MyRatingsLoadStatus.idle ||
-              MyRatingsLoadStatus.loading => const _RatingsLoading(),
-              MyRatingsLoadStatus.empty => const _RatingsEmpty(),
-              MyRatingsLoadStatus.error => _RatingsError(
-                message:
-                    viewModel.refreshWarning ??
-                    viewModel.message ??
-                    '평점을 불러오지 못했습니다.',
-                onRetry: viewModel.load,
+    return Consumer<MyRatingsViewModel>(
+      builder: (context, viewModel, child) {
+        return PopScope(
+          canPop: !viewModel.isDeletingSelected,
+          child: LoadingOverlay(
+            isLoading: viewModel.isDeletingSelected,
+            child: Scaffold(
+              appBar: CommonAppBar(
+                title: '내가 등록한 평점',
+                centerTitle: true,
+                onBack: () => context.pop(),
               ),
-              MyRatingsLoadStatus.success => _RatingsList(
-                ratings: viewModel.ratings,
-                notice: viewModel.message,
+              body: SafeArea(
+                child: switch (viewModel.status) {
+                  MyRatingsLoadStatus.idle ||
+                  MyRatingsLoadStatus.loading => const _RatingsLoading(),
+                  MyRatingsLoadStatus.empty => const _RatingsEmpty(),
+                  MyRatingsLoadStatus.error => _RatingsError(
+                    message:
+                        viewModel.refreshWarning ??
+                        viewModel.message ??
+                        '평점을 불러오지 못했습니다.',
+                    onRetry: viewModel.load,
+                  ),
+                  MyRatingsLoadStatus.success => _RatingsList(
+                    viewModel: viewModel,
+                  ),
+                },
               ),
-            };
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -115,25 +121,174 @@ class _RatingsError extends StatelessWidget {
   }
 }
 
-class _RatingsList extends StatelessWidget {
-  const _RatingsList({required this.ratings, this.notice});
+Future<void> onDeleteSelectedPressed(BuildContext context) async {
+  final viewModel = context.read<MyRatingsViewModel>();
+  final messenger = ScaffoldMessenger.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('선택한 평점을 삭제할까요?'),
+      content: const Text('삭제한 평점은 복구할 수 없습니다.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('취소'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('삭제'),
+        ),
+      ],
+    ),
+  );
 
-  final List<RatingWithMovie> ratings;
-  final String? notice;
+  if (confirmed != true || !context.mounted) return;
+
+  await viewModel.deleteSelectedRatings();
+  if (viewModel.failedDeleteCount > 0) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('${viewModel.failedDeleteCount}개 항목을 삭제하지 못했습니다.'),
+      ),
+    );
+  }
+}
+
+class _RatingsList extends StatelessWidget {
+  const _RatingsList({required this.viewModel});
+
+  final MyRatingsViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      itemCount: ratings.length + (notice == null ? 0 : 1),
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        if (notice != null) {
-          if (index == 0) return _RatingsNotice(message: notice!);
-          index--;
-        }
-        return RatingCard(entry: ratings[index]);
-      },
+    final ratings = viewModel.ratings;
+    final notice = viewModel.message;
+    final isSelecting = viewModel.isSelectionMode;
+    final selectedCount = viewModel.selectedRatingIds.length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 12, 0),
+          child: Row(
+            children: [
+              if (isSelecting)
+                Text(
+                  '$selectedCount개 선택됨',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.violet,
+                  ),
+                ),
+              const Spacer(),
+              TextButton(
+                onPressed: isSelecting
+                    ? viewModel.cancelSelection
+                    : viewModel.startSelection,
+                child: Text(isSelecting ? '취소' : '편집'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            itemCount: ratings.length + (notice == null ? 0 : 1),
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              if (notice != null) {
+                if (index == 0) return _RatingsNotice(message: notice);
+                index--;
+              }
+              final entry = ratings[index];
+              if (!isSelecting) return RatingCard(entry: entry);
+              final ratingId = entry.rating.ratingId;
+              return _SelectableRatingCard(
+                entry: entry,
+                isSelected: viewModel.selectedRatingIds.contains(ratingId),
+                onToggle: () => viewModel.toggleSelected(ratingId),
+              );
+            },
+          ),
+        ),
+        if (isSelecting)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: MovieLogButton(
+              label: '선택한 $selectedCount개 삭제',
+              width: double.infinity,
+              height: 52,
+              onPressed: selectedCount > 0
+                  ? () => onDeleteSelectedPressed(context)
+                  : null,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SelectableRatingCard extends StatelessWidget {
+  const _SelectableRatingCard({
+    required this.entry,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
+  final RatingWithMovie entry;
+  final bool isSelected;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final rating = entry.rating;
+    final comment = rating.comment;
+
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(20),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.skeleton, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: isSelected,
+              activeColor: AppColors.violet,
+              onChanged: (_) => onToggle(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${entry.movie?.title ?? '영화 #${rating.movieId}'} · 별점 ${rating.score}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.titleMedium,
+                  ),
+                  if (comment != null && comment.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      comment,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.gray,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
