@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/main.dart';
 import 'package:movielog/router/app_router.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
+import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/movielog_button.dart';
 import 'package:provider/provider.dart';
@@ -20,11 +21,11 @@ void main() {
   }
 
   group('회원가입 중복 확인', () {
-    late FakeMemberCheckService service;
+    late FakeSignUpService service;
 
     Future<void> pumpSignUp(WidgetTester tester) async {
       useTallView(tester);
-      service = FakeMemberCheckService();
+      service = FakeSignUpService();
       await tester.pumpWidget(
         MaterialApp(
           home: ChangeNotifierProvider(
@@ -103,7 +104,7 @@ void main() {
 
     testWidgets('통신 실패는 중복과 다른 문구로 보여준다', (tester) async {
       await pumpSignUp(tester);
-      service.error = networkError('/v5/members/nickname/x');
+      service.error = networkError('/v6/members/nickname/x');
       await tester.enterText(nicknameField(), '영화광');
       await tester.pump();
       await tester.tap(nicknameCheckButton());
@@ -141,15 +142,16 @@ void main() {
       await tester.pumpWidget(
         MovieLogApp(
           movieService: FakeTmdbMovieService(),
-          memberCheckService: FakeMemberCheckService(),
+          signUpService: FakeSignUpService(),
           ratingApiService: ratingService,
+          session: LearningMemberSession(1),
         ),
       );
       await tester.pumpAndSettle();
       return ratingService;
     }
 
-    testWidgets('마이페이지에서 진입하면 하단 탭 없이 memberId 1의 평점을 보여준다', (tester) async {
+    testWidgets('마이페이지에서 진입하면 하단 탭 없이 가입한 memberId의 평점을 보여준다', (tester) async {
       final ratings = await pumpAppAt(tester, '/my');
 
       await tester.tap(find.text('내가 등록한 평점'));
@@ -181,7 +183,7 @@ void main() {
 
     testWidgets('실패하면 문구와 고정 너비 다시 시도 버튼을 보여주고, 재시도는 성공한다', (tester) async {
       final ratings = FakeRatingApiService()
-        ..error = httpError('/v5/members/1/ratings', 404);
+        ..error = httpError('/v6/members/1/ratings', 404);
       await pumpAppAt(tester, '/my/ratings', ratings: ratings);
 
       expect(find.text('존재하지 않는 회원입니다.'), findsOneWidget);

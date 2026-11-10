@@ -9,11 +9,11 @@ import 'helpers/tmdb_fakes.dart';
 
 void main() {
   group('SignUpViewModel', () {
-    late FakeMemberCheckService service;
+    late FakeSignUpService service;
     late SignUpViewModel viewModel;
 
     setUp(() {
-      service = FakeMemberCheckService();
+      service = FakeSignUpService();
       viewModel = SignUpViewModel(service);
     });
 
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('통신 실패는 중복과 다른 상태·문구로 구분한다', () async {
-      service.error = networkError('/v5/members/nickname/x');
+      service.error = networkError('/v6/members/nickname/x');
       viewModel.onNicknameChanged('영화광');
       await viewModel.checkNickname('영화광');
 
@@ -112,7 +112,7 @@ void main() {
     MyRatingsViewModel create(
       FakeRatingApiService ratings,
       FakeTmdbMovieService movies,
-    ) => MyRatingsViewModel(ratings, movies, sampleMemberId);
+    ) => MyRatingsViewModel(ratings, movies, 1);
 
     test('memberId 1의 평점을 TMDB 영화 정보와 묶어 Success로 둔다', () async {
       final ratings = FakeRatingApiService();
@@ -142,14 +142,14 @@ void main() {
 
     test('400과 404를 서로 다른 문구로 보여준다', () async {
       final ratings = FakeRatingApiService()
-        ..error = httpError('/v5/members/1/ratings', 404);
+        ..error = httpError('/v6/members/1/ratings', 404);
       final viewModel = create(ratings, FakeTmdbMovieService());
 
       await viewModel.load();
       expect(viewModel.status, MyRatingsLoadStatus.error);
       expect(viewModel.message, '존재하지 않는 회원입니다.');
 
-      ratings.error = httpError('/v5/members/abc/ratings', 400);
+      ratings.error = httpError('/v6/members/abc/ratings', 400);
       await viewModel.load();
       expect(viewModel.message, 'memberId 형식을 다시 확인해 주세요.');
     });

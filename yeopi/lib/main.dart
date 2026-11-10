@@ -4,12 +4,13 @@ import 'package:provider/provider.dart';
 
 import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
-import 'data/services/member_check_service.dart';
 import 'data/services/rating_api_service.dart';
+import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
 import 'services/movie_list_preferences.dart';
 import 'theme/app_theme.dart';
+import 'view_models/learning_member_session.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,15 +24,17 @@ class MovieLogApp extends StatelessWidget {
     super.key,
     this.movieService,
     this.preferences,
-    this.memberCheckService,
+    this.signUpService,
     this.ratingApiService,
+    this.session,
   });
 
   // 테스트에서 실제 서버 대신 Fake를 넣을 때만 전달합니다.
   final TmdbMovieService? movieService;
   final MovieListPreferences? preferences;
-  final MemberCheckService? memberCheckService;
+  final SignUpService? signUpService;
   final RatingApiService? ratingApiService;
+  final LearningMemberSession? session;
 
   @override
   Widget build(BuildContext context) {
@@ -44,15 +47,18 @@ class MovieLogApp extends StatelessWidget {
         Provider<TmdbMovieService>(
           create: (_) => movieService ?? TmdbMovieService(createTmdbClient()),
         ),
-        Provider<MemberCheckService>(
-          create: (_) =>
-              memberCheckService ?? MemberCheckService(movieLogClient),
+        Provider<SignUpService>(
+          create: (_) => signUpService ?? SignUpService(movieLogClient),
         ),
         Provider<RatingApiService>(
           create: (_) => ratingApiService ?? RatingApiService(movieLogClient),
         ),
         Provider<MovieListPreferences>(
           create: (_) => preferences ?? MovieListPreferences(),
+        ),
+        // 회원가입으로 받은 memberId를 앱 실행 동안만 메모리에 들고 있습니다. (비밀번호는 저장하지 않습니다.)
+        ChangeNotifierProvider<LearningMemberSession>(
+          create: (_) => session ?? LearningMemberSession(),
         ),
       ],
       child: MaterialApp.router(

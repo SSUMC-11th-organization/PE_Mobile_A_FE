@@ -1,7 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../data/services/member_check_service.dart';
+import '../data/models/create_member_request.dart';
+import '../data/services/sign_up_service.dart';
 import '../utils/sign_up_validators.dart';
+import 'load_error_message.dart';
+import 'submit_status.dart';
+
+export 'submit_status.dart';
 
 enum CheckStatus { idle, checking, available, duplicated, error }
 
@@ -33,7 +39,8 @@ class _CheckField {
 }
 
 class SignUpViewModel extends ChangeNotifier {
-  SignUpViewModel(MemberCheckService service) {
+  SignUpViewModel(this._service) {
+    final service = _service;
     _nickname = _CheckField(
       validator: SignUpValidators.nickname,
       request: service.checkNickname,
@@ -46,9 +53,59 @@ class SignUpViewModel extends ChangeNotifier {
     );
   }
 
+  final SignUpService _service;
   late final _CheckField _nickname;
   late final _CheckField _email;
   bool _disposed = false;
+
+  SubmitStatus submitStatus = SubmitStatus.idle;
+  // 가입 성공 응답의 result에서 읽은 실제 ID입니다.
+  int? createdMemberId;
+  // 400 중 비밀번호 형식 위반은 입력칸에, 그 밖의 400·409는 어느 칸에도 붙일 수 없어 Snackbar로 보여줍니다.
+  String? passwordErrorText;
+  String? snackbarMessage;
+
+  bool get isSubmitting => submitStatus == SubmitStatus.submitting;
+
+  void onPasswordChanged() {
+    if (passwordErrorText == null) return;
+    passwordErrorText = null;
+    _notify();
+  }
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (isSubmitting) return;
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    _notify();
+
+    try {
+      final response = await _service.signUp(request);
+      final id = response.result?.memberId;
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      submitStatus = SubmitStatus.error;
+      final message = serverErrorMessage(
+        error,
+        fallback: '회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+      if (error.response?.statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+      }
+    } catch (error) {
+      // 201은 왔지만 memberId를 읽지 못한 경우: 가입 완료로 표시하지 않습니다.
+      debugPrint('회원가입 응답 확인 실패: $error');
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
+    }
+    _notify();
+  }
 
   CheckStatus get nicknameCheckStatus => _nickname.status;
   String? get nicknameErrorText => _nickname.errorText;
