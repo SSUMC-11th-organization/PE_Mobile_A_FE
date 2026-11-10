@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/tmdb_config.dart';
-import 'tmdb_logging_interceptor.dart';
+import 'api_logging_interceptor.dart';
 
 // 자체 API와 인증 방식이 달라서 TMDB 전용 Client를 따로 만듭니다.
 Dio createTmdbClient() {
@@ -23,7 +23,7 @@ Dio createTmdbClient() {
   );
 
   if (kDebugMode) {
-    dio.interceptors.add(TmdbLoggingInterceptor());
+    dio.interceptors.add(ApiLoggingInterceptor('TMDB'));
   }
 
   return dio;

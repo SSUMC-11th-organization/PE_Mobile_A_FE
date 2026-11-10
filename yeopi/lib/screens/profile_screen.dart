@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/common_app_bar.dart';
@@ -40,6 +41,19 @@ class ProfileScreen extends StatelessWidget {
               const Align(
                 alignment: Alignment.centerLeft,
                 child: FavoriteGenres(),
+              ),
+              const SizedBox(height: 24),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.outline),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.star_outline),
+                  title: const Text('내가 등록한 평점'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/my/ratings'),
+                ),
               ),
             ],
           ),
