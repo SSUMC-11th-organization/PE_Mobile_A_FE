@@ -1,6 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../data/services/member_check_service.dart';
+import '../data/models/create_member_request.dart';
+import '../data/services/sign_up_service.dart';
 import '../utils/validators.dart';
+import 'submit_status.dart';
 
 enum CheckStatus { idle, checking, available, duplicated, error }
 
@@ -26,7 +29,7 @@ class _FieldState {
 class SignUpViewModel extends ChangeNotifier {
   SignUpViewModel(this._service);
 
-  final MemberCheckService _service;
+  final SignUpService _service;
 
   final _nickname = _FieldState(
     validator: Validators.nickname,
@@ -36,6 +39,11 @@ class SignUpViewModel extends ChangeNotifier {
     validator: Validators.email,
     duplicatedMessage: '이미 사용 중인 이메일입니다.',
   );
+
+  SubmitStatus submitStatus = SubmitStatus.idle;
+  int? createdMemberId; // 가입 성공 응답에서 읽은 실제 ID
+  String? passwordErrorText; // 400 중 비밀번호 오류 (필드 단위)
+  String? snackbarMessage; // 그 외 400, 409 (화면 단위)
 
   bool _disposed = false;
 
@@ -50,10 +58,57 @@ class SignUpViewModel extends ChangeNotifier {
   void onNicknameChanged(String value) => _onChanged(_nickname, value);
   void onEmailChanged(String value) => _onChanged(_email, value);
 
+  void onPasswordChanged() {
+    passwordErrorText = null;
+    _clearSubmitFailure();
+    _notify();
+  }
+
   Future<void> checkNickname(String value) =>
       _check(_nickname, value, _service.checkNickname, '닉네임');
   Future<void> checkEmail(String value) =>
       _check(_email, value, _service.checkEmail, '이메일');
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (submitStatus == SubmitStatus.submitting) return; // 중복 탭 방지
+
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    _notify();
+
+    try {
+      final response = await _service.signUp(request);
+      if (_disposed) return;
+
+      final id = response.result?.memberId;
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      if (_disposed) return;
+
+      submitStatus = SubmitStatus.error;
+      final message = writeSignUpErrorMessage(error);
+
+      // 400 중 비밀번호 오류로 확인된 경우만 입력칸에 붙이고, 나머지는 Snackbar
+      if (error.response?.statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+      }
+    } catch (error) {
+      if (_disposed) return;
+
+      debugPrint('[SignUpViewModel] 회원가입 결과 처리 실패: $error');
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
+    }
+
+    _notify();
+  }
 
   void _onChanged(_FieldState field, String value) {
     final trimmed = value.trim();
@@ -68,6 +123,8 @@ class SignUpViewModel extends ChangeNotifier {
       field.status = CheckStatus.idle;
       field.errorText = null;
     }
+
+    _clearSubmitFailure(); // 이전 제출 오류도 함께 무효화
     _notify();
   }
 
@@ -106,6 +163,13 @@ class SignUpViewModel extends ChangeNotifier {
       field.errorText = '중복 확인에 실패했습니다. 다시 시도해 주세요.';
     }
     _notify();
+  }
+
+  void _clearSubmitFailure() {
+    if (submitStatus == SubmitStatus.error) {
+      submitStatus = SubmitStatus.idle;
+      snackbarMessage = null;
+    }
   }
 
   bool _isStale(_FieldState field, int version, String requested) {

@@ -5,14 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:movielog/data/models/check_result.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
-import 'package:movielog/data/services/member_check_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 
-class FakeMemberCheckService extends MemberCheckService {
-  FakeMemberCheckService() : super(Dio());
+class FakeCheckService extends SignUpService {
+  FakeCheckService() : super(Dio());
 
   final taken = <String>{'taken'};
   bool shouldFail = false;
@@ -113,9 +113,9 @@ void main() {
     });
   });
 
-  group('SignUpViewModel', () {
+  group('SignUpViewModel 중복 확인', () {
     test('사용 가능 응답이면 available 상태가 된다', () async {
-      final vm = SignUpViewModel(FakeMemberCheckService());
+      final vm = SignUpViewModel(FakeCheckService());
       addTearDown(vm.dispose);
 
       vm.onNicknameChanged('무비러버');
@@ -126,7 +126,7 @@ void main() {
     });
 
     test('중복 응답이면 에러 문구가 생기고 버튼이 비활성화된다', () async {
-      final vm = SignUpViewModel(FakeMemberCheckService());
+      final vm = SignUpViewModel(FakeCheckService());
       addTearDown(vm.dispose);
 
       vm.onNicknameChanged('taken');
@@ -138,7 +138,7 @@ void main() {
     });
 
     test('통신 실패와 중복 응답은 서로 다른 상태와 문구다', () async {
-      final service = FakeMemberCheckService()..shouldFail = true;
+      final service = FakeCheckService()..shouldFail = true;
       final vm = SignUpViewModel(service);
       addTearDown(vm.dispose);
 
@@ -151,7 +151,7 @@ void main() {
     });
 
     test('입력을 바꾸면 이전 결과가 무효화된다', () async {
-      final vm = SignUpViewModel(FakeMemberCheckService());
+      final vm = SignUpViewModel(FakeCheckService());
       addTearDown(vm.dispose);
 
       vm.onNicknameChanged('taken');
@@ -164,7 +164,7 @@ void main() {
     });
 
     test('중복이었던 값을 다시 입력하면 재요청 없이 즉시 에러 상태가 된다', () async {
-      final service = FakeMemberCheckService();
+      final service = FakeCheckService();
       final vm = SignUpViewModel(service);
       addTearDown(vm.dispose);
 
@@ -180,7 +180,7 @@ void main() {
     });
 
     test('기다리는 중 입력을 바꾸면 늦게 온 응답은 무시한다', () async {
-      final service = FakeMemberCheckService()..hold = Completer<bool>();
+      final service = FakeCheckService()..hold = Completer<bool>();
       final vm = SignUpViewModel(service);
       addTearDown(vm.dispose);
 
@@ -197,7 +197,7 @@ void main() {
     });
 
     test('닉네임과 이메일 상태는 서로 영향을 주지 않는다', () async {
-      final vm = SignUpViewModel(FakeMemberCheckService());
+      final vm = SignUpViewModel(FakeCheckService());
       addTearDown(vm.dispose);
 
       vm.onNicknameChanged('taken');
@@ -210,7 +210,7 @@ void main() {
     });
 
     test('형식이 맞지 않으면 중복 확인 버튼이 비활성화된다', () {
-      final vm = SignUpViewModel(FakeMemberCheckService());
+      final vm = SignUpViewModel(FakeCheckService());
       addTearDown(vm.dispose);
 
       vm.onEmailChanged('abc');
@@ -221,7 +221,7 @@ void main() {
     });
   });
 
-  group('MyRatingsViewModel', () {
+  group('MyRatingsViewModel 조회', () {
     test('평점이 없으면 error가 아니라 empty 상태다', () async {
       final vm = MyRatingsViewModel(
         FakeRatingApiService(),

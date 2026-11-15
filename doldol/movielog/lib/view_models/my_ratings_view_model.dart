@@ -5,8 +5,6 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 
-const int sampleMemberId = 1; // 인증된 '내 계정'이 아닌 학습용 데이터
-
 enum MyRatingsLoadStatus { idle, loading, success, empty, error }
 
 class MyRatingsViewModel extends ChangeNotifier {
@@ -24,12 +22,16 @@ class MyRatingsViewModel extends ChangeNotifier {
   MyRatingsLoadStatus status = MyRatingsLoadStatus.idle;
   String? message;
 
+  /// 저장은 성공했지만 목록 재조회가 실패했을 때의 안내 (조회만 다시 시도하면 된다)
+  String? refreshWarning;
+
   bool _isStale(int version) => _disposed || version != _requestVersion;
 
   Future<void> load() async {
     final version = ++_requestVersion;
     status = MyRatingsLoadStatus.loading;
     message = null;
+    refreshWarning = null;
     notifyListeners();
 
     try {
@@ -49,7 +51,9 @@ class MyRatingsViewModel extends ChangeNotifier {
                 await _movieService.findMovieById(rating.movieId);
           } catch (error) {
             // 일시적 실패는 캐시하지 않는다. 평점 목록은 지우지 않는다.
-            debugPrint('[MyRatingsViewModel] 영화 ${rating.movieId} 조회 실패: $error');
+            debugPrint(
+              '[MyRatingsViewModel] 영화 ${rating.movieId} 조회 실패: $error',
+            );
           }
         }
 
@@ -78,6 +82,49 @@ class MyRatingsViewModel extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// 저장이 끝난 뒤 목록을 서버 상태와 맞춘다. 재조회 실패는 저장 실패가 아니다.
+  Future<void> _refreshAfterWrite() async {
+    await load();
+    if (_disposed) return;
+
+    if (status == MyRatingsLoadStatus.error) {
+      refreshWarning = '저장은 완료됐지만 목록을 불러오지 못했습니다. 조회만 다시 시도해 주세요.';
+      notifyListeners();
+    }
+  }
+
+  /// 쓰기 실패는 rethrow해서 Dialog가 실패로 처리하게 한다.
+  Future<void> updateRating({
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    try {
+      await _service.updateRating(
+        memberId: memberId,
+        ratingId: ratingId,
+        score: score,
+        comment: comment,
+      );
+    } on DioException catch (error) {
+      if (shouldRefreshAfterRatingError(error)) await load();
+      rethrow;
+    }
+
+    await _refreshAfterWrite(); // GET 실패는 저장 실패로 다시 던지지 않는다
+  }
+
+  Future<void> deleteRating(int ratingId) async {
+    try {
+      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+    } on DioException catch (error) {
+      if (shouldRefreshAfterRatingError(error)) await load();
+      rethrow;
+    }
+
+    await _refreshAfterWrite();
   }
 
   @override

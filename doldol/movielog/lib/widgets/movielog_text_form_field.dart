@@ -16,7 +16,8 @@ class MovieLogTextFormField extends StatefulWidget {
     this.onChanged,
     this.onFieldSubmitted,
     this.errorText,
-    this.successText,
+    this.statusText,
+    this.statusColor,
     this.isVerified,
     this.trailing,
   });
@@ -35,8 +36,9 @@ class MovieLogTextFormField extends StatefulWidget {
   /// ViewModel 등 밖에서 내려주는 에러 문구 (null이 아니면 에러 상태)
   final String? errorText;
 
-  /// 확인 완료 문구 (입력창 아래에 표시)
-  final String? successText;
+  /// 입력창 아래 상태 문구 (확인 중, 사용 가능 등)
+  final String? statusText;
+  final Color? statusColor;
 
   /// null이면 로컬 검증 기준, 값이 있으면 true일 때만 체크 아이콘 표시
   final bool? isVerified;
@@ -51,12 +53,10 @@ class MovieLogTextFormField extends StatefulWidget {
 class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
   bool _obscure = true;
 
-  OutlineInputBorder _border({Color? color, double width = 1}) {
+  OutlineInputBorder _border({required Color color, double width = 1}) {
     return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: color == null
-          ? BorderSide.none
-          : BorderSide(color: color, width: width),
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: color, width: width),
     );
   }
 
@@ -131,7 +131,7 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
                       errorText: widget.errorText,
                       filled: true,
                       fillColor:
-                          hasError ? AppColors.errorBg : AppColors.fieldBg,
+                          hasError ? AppColors.errorBg : AppColors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -141,8 +141,8 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
                         fontSize: 11,
                         color: AppColors.error,
                       ),
-                      border: _border(),
-                      enabledBorder: _border(),
+                      border: _border(color: AppColors.starEmpty),
+                      enabledBorder: _border(color: AppColors.starEmpty),
                       focusedBorder:
                           _border(color: AppColors.violet, width: 1.5),
                       errorBorder: _border(color: AppColors.error),
@@ -159,14 +159,15 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
             ],
           ],
         ),
-        if (widget.successText case final successText?)
+        if (widget.statusText case final statusText?)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              successText,
+              statusText,
               style: AppTextStyles.label.copyWith(
-                color: AppColors.violet,
-                fontSize: 11,
+                color: widget.statusColor ?? AppColors.violet,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
