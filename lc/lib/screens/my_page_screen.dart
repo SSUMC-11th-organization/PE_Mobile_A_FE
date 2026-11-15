@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../data/models/member_info.dart';
 import '../theme/app_colors.dart';
+import '../view_models/auth_view_model.dart';
+import '../widgets/movielog_button.dart';
 import '../widgets/stat_item.dart';
 
 class MyPageScreen extends StatelessWidget {
@@ -9,28 +13,90 @@ class MyPageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // read가 아니라 watch로 구독해야 닉네임이 바뀌면 다시 그려진다.
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 64,
         titleSpacing: 16,
         title: const Text('내 프로필'),
+        actions: [
+          IconButton(
+            tooltip: '로그아웃',
+            icon: const Icon(Icons.logout, size: 22),
+            color: AppColors.textSecondary,
+            // 토큰과 내 정보를 지우면 Router가 로그인 화면으로 보낸다.
+            onPressed: auth.storageCleanupInProgress ? null : auth.logout,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const [
-            ProfileHeader(),
-            SizedBox(height: 32),
-            ProfileStats(),
-            SizedBox(height: 16),
-            _MyRatingsEntry(),
-            SizedBox(height: 16),
-            FavoriteGenres(),
-            SizedBox(height: 48),
-            _TmdbAttribution(),
-          ],
+      body: switch (member) {
+        final MemberInfo member => _MyPageContent(member: member),
+        // 내 정보를 불러오지 못했으면 로그아웃하지 않고 다시 시도할 수 있게 한다.
+        null when auth.memberStatus == MemberLoadStatus.error =>
+          _MemberLoadError(onRetry: () => auth.loadMember(force: true)),
+        null => const Center(
+          child: CircularProgressIndicator(color: AppColors.violet),
         ),
+      },
+    );
+  }
+}
+
+class _MyPageContent extends StatelessWidget {
+  const _MyPageContent({required this.member});
+
+  final MemberInfo member;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ProfileHeader(member: member),
+          const SizedBox(height: 32),
+          const ProfileStats(),
+          const SizedBox(height: 16),
+          const _MyRatingsEntry(),
+          const SizedBox(height: 16),
+          const FavoriteGenres(),
+          const SizedBox(height: 48),
+          const _TmdbAttribution(),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+          const SizedBox(height: 12),
+          const Text(
+            '내 정보를 불러오지 못했어요.',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          MovieLogButton(label: '다시 시도', onPressed: onRetry),
+        ],
       ),
     );
   }
@@ -72,8 +138,19 @@ class _TmdbAttribution extends StatelessWidget {
   }
 }
 
+/// GET me로 받은 내 정보(닉네임·이메일·가입일)를 보여준다. 사진은 디자인 예시다.
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key});
+  const ProfileHeader({super.key, required this.member});
+
+  final MemberInfo member;
+
+  /// "2026.10.10 가입" 형식
+  static String formatJoinedAt(DateTime createdAt) {
+    final local = createdAt.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '${local.year}.$month.$day 가입';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,27 +173,31 @@ class ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          '무비러버',
-          style: TextStyle(
+        Text(
+          member.nickname,
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w500,
             height: 28 / 22,
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 448),
-          child: const Text(
-            '매주 주말엔 영화관으로 출근하는 프로 관람객. 좋은 영화를 보고 기록하는 것을 좋아합니다.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              height: 24 / 16,
-              color: AppColors.textSecondary,
-            ),
+        const SizedBox(height: 4),
+        Text(
+          formatJoinedAt(member.createdAt),
+          style: const TextStyle(
+            fontSize: 13,
+            height: 18 / 13,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          member.email,
+          style: const TextStyle(
+            fontSize: 14,
+            height: 20 / 14,
+            color: AppColors.textSecondary,
           ),
         ),
         const SizedBox(height: 16),
@@ -126,6 +207,7 @@ class ProfileHeader extends StatelessWidget {
   }
 }
 
+/// 통계 수치는 디자인 예시다. (v7 GET me 응답에는 이메일·닉네임·가입일만 있다.)
 class ProfileStats extends StatelessWidget {
   const ProfileStats({super.key});
 
@@ -184,9 +266,7 @@ class EditProfileButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OutlinedButton(
-      onPressed: () {
-        debugPrint('프로필 수정 버튼 눌림');
-      },
+      onPressed: () => context.push('/my/profile/edit'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.violet,
         side: const BorderSide(color: AppColors.violet),

@@ -14,7 +14,7 @@ class SignUpService {
   /// 성공 응답은 직접 객체({ "available": true })이고, 오류만 공통 응답 형식이다.
   Future<bool> checkNickname(String nickname) async {
     final encoded = Uri.encodeComponent(nickname.trim());
-    final response = await _dio.get('/v6/members/nickname/$encoded');
+    final response = await _dio.get('/v7/members/nickname/$encoded');
     return CheckResult.fromJson(
       response.data as Map<String, dynamic>,
     ).available;
@@ -22,7 +22,7 @@ class SignUpService {
 
   Future<bool> checkEmail(String email) async {
     final encoded = Uri.encodeComponent(email.trim());
-    final response = await _dio.get('/v6/members/email/$encoded');
+    final response = await _dio.get('/v7/members/email/$encoded');
     return CheckResult.fromJson(
       response.data as Map<String, dynamic>,
     ).available;
@@ -33,7 +33,7 @@ class SignUpService {
   Future<CommonResponse<SignUpResult>> signUp(
     CreateMemberRequest request,
   ) async {
-    final response = await _dio.post('/v6/members', data: request.toJson());
+    final response = await _dio.post('/v7/members', data: request.toJson());
 
     return CommonResponse<SignUpResult>.fromJson(
       response.data as Map<String, dynamic>,

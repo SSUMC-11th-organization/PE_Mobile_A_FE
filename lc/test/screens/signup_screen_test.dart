@@ -3,35 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:movielog/app/movie_log_app.dart';
-import 'package:movielog/router/app_router.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/widgets/movielog_button.dart';
 
-import '../test_helpers.dart';
 import '../week6_helpers.dart';
 
 void main() {
+  late AppHarness harness;
   late FakeSignUpService members;
-  late LearningMemberSession session;
 
-  /// 폰 크기(390 x 900)에서 회원가입 화면을 연다.
+  /// 폰 크기(390 x 900)에서, 로그인하지 않은 상태로 회원가입 화면을 연다.
   Future<void> openSignUp(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    members = FakeSignUpService();
-    session = LearningMemberSession();
-    await tester.pumpWidget(
-      MovieLogApp(
-        movieService: FakeTmdbMovieService(),
-        signUpService: members,
-        memberSession: session,
-      ),
-    );
-    AppRouter.router.go('/register');
-    await tester.pumpAndSettle();
+    harness = AppHarness();
+    members = harness.signUp;
+    await harness.pump(tester, signedIn: false, size: const Size(390, 900));
+    await harness.go(tester, '/register');
   }
 
   Finder field(int index) => find.byType(TextFormField).at(index);
@@ -291,7 +276,7 @@ void main() {
       await verifyBoth(tester);
     }
 
-    testWidgets('성공하면 응답의 memberId를 세션에 저장하고 영화 목록으로 이동한다', (tester) async {
+    testWidgets('성공하면 토큰이 없으므로 로그인 화면으로 보내고 안내한다', (tester) async {
       await readyToSubmit(tester);
       members.signUpMemberId = 321;
 
@@ -301,11 +286,9 @@ void main() {
       expect(members.signUpCalls, hasLength(1));
       expect(members.signUpCalls.single.email, 'lc@example.com');
       expect(members.signUpCalls.single.nickname, '영화광');
-      expect(session.memberId, 321);
-      expect(
-        AppRouter.router.routerDelegate.currentConfiguration.uri.path,
-        '/movies',
-      );
+      expect(harness.location(tester), '/login');
+      expect(find.text('회원가입이 완료됐어요. 로그인해 주세요.'), findsOneWidget);
+      expect(harness.tokens.token, isNull); // 가입만으로는 로그인되지 않는다.
     });
 
     testWidgets('제출 중에는 버튼이 로딩 상태로 잠기고 연속 탭이 요청을 늘리지 않는다', (tester) async {
@@ -328,7 +311,7 @@ void main() {
 
       members.signUpGate!.complete();
       await tester.pumpAndSettle();
-      expect(session.memberId, 101);
+      expect(harness.location(tester), '/login');
     });
 
     testWidgets('비밀번호 형식 400은 비밀번호 입력칸의 에러가 되고, 고치면 사라진다', (tester) async {
@@ -344,7 +327,6 @@ void main() {
 
       expect(find.text('비밀번호는 서버 기준을 만족해야 합니다.'), findsOneWidget);
       expect(find.byType(SnackBar), findsNothing);
-      expect(session.memberId, isNull);
 
       await tester.enterText(field(2), 'Password2!');
       await tester.pump();
@@ -364,11 +346,7 @@ void main() {
 
       expect(find.text('이미 사용 중인 이메일입니다.'), findsOneWidget);
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(session.memberId, isNull);
-      expect(
-        AppRouter.router.routerDelegate.currentConfiguration.uri.path,
-        '/register',
-      );
+      expect(harness.location(tester), '/register');
       // 제출이 끝났으므로 다시 제출할 수 있다.
       expect(submitEnabled(tester), isTrue);
     });
@@ -392,11 +370,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('가입 결과를 확인하지 못했습니다'), findsOneWidget);
-      expect(session.memberId, isNull);
-      expect(
-        AppRouter.router.routerDelegate.currentConfiguration.uri.path,
-        '/register',
-      );
+      expect(harness.location(tester), '/register');
     });
   });
 }

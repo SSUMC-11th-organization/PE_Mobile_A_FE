@@ -6,7 +6,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../data/models/create_member_request.dart';
 import '../utils/signup_validators.dart';
-import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
@@ -71,7 +70,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // await 뒤에는 context를 쓰지 않도록 필요한 객체를 먼저 꺼내 둔다.
     final viewModel = context.read<SignUpViewModel>();
-    final session = context.read<LearningMemberSession>();
     final messenger = ScaffoldMessenger.of(context);
 
     await viewModel.submit(
@@ -83,11 +81,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
     if (!mounted) return;
 
-    final memberId = viewModel.createdMemberId;
-    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
-      // 가입 응답의 실제 memberId를 이후 평점 요청에 쓰도록 보관한다.
-      session.setMemberId(memberId);
-      context.go('/movies');
+    if (viewModel.submitStatus == SubmitStatus.success) {
+      // 가입만으로는 토큰이 없다. 로그인 화면으로 보내 로그인하게 한다.
+      context.go('/login');
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('회원가입이 완료됐어요. 로그인해 주세요.')),
+        );
       return;
     }
     final message = viewModel.snackbarMessage;
@@ -101,8 +102,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 회원가입 화면에서는 뒤로 가기가 동작하지 않는다. 제출 중에도 당연히 벗어날 수 없다.
-    return PopScope(canPop: false, child: _buildScaffold());
+    // 제출 중에는 화면을 벗어날 수 없다. 끝나면 로그인 화면으로 돌아갈 수 있다.
+    final submitting = context.watch<SignUpViewModel>().isSubmitting;
+    return PopScope(canPop: !submitting, child: _buildScaffold());
   }
 
   Widget _buildScaffold() {
@@ -113,7 +115,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return Scaffold(
           appBar: isWide
               ? null
-              : const CommonAppBar(title: '회원가입', centerTitle: true),
+              : const CommonAppBar(
+                  title: '회원가입',
+                  centerTitle: true,
+                  showBackButton: true,
+                ),
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, body) => SingleChildScrollView(
