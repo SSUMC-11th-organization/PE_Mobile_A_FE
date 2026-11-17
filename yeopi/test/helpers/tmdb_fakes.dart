@@ -104,4 +104,27 @@ class FakeTmdbMovieService implements TmdbMovieService {
     await _respond();
     return genres;
   }
+
+  // 값을 넣으면 영화 상세 조회만 이 예외로 실패합니다. (목록 요청과 따로 실패시키기 위함)
+  Object? detailError;
+  final detailRequests = <int>[];
+
+  @override
+  Future<TmdbMovieDto?> findMovieById(int movieId) async {
+    detailRequests.add(movieId);
+    await _respond();
+    final failure = detailError;
+    if (failure != null) throw failure;
+    for (final movie in movies) {
+      if (movie.id == movieId) return movie;
+    }
+    return null;
+  }
+
+  @override
+  Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
+    final movie = await findMovieById(movieId);
+    if (movie == null) throw StateError('movieId $movieId 없음');
+    return movie;
+  }
 }
