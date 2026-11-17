@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/validators.dart';
+import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/movielog_button.dart';
 import '../widgets/movielog_text_form_field.dart';
-import '../widgets/signup_button.dart';
 import '../widgets/terms_checkbox.dart';
-import 'package:go_router/go_router.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -31,17 +33,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   bool _agreedToTerms = false;
 
-  // 버튼 활성화 조건: 세 입력값이 모두 유효하고 약관에 동의했을 때
-  bool get _canSubmit =>
+  // 모든 입력이 유효하고 중복 확인을 통과했으며 약관에 동의했을 때만 활성화
+  bool _canSubmit(SignUpViewModel vm) =>
       Validators.nickname(_nicknameController.text) == null &&
       Validators.email(_emailController.text) == null &&
       Validators.password(_passwordController.text) == null &&
+      vm.nicknameCheckStatus == CheckStatus.available &&
+      vm.emailCheckStatus == CheckStatus.available &&
       _agreedToTerms;
 
   void _refresh() => setState(() {});
 
   void _submit() {
-    // 버튼을 누르면 Form 전체를 다시 검증
+    // 버튼을 누르면 Form 전체를 다시 검증 (실제 가입 요청은 보내지 않는다)
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
@@ -63,8 +67,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  // 입력창 3개: 휴대폰과 넓은 화면이 같은 Controller, Validator, 상태를 재사용
-  List<Widget> _buildFields({required bool isWide}) {
+  List<Widget> _buildFields(SignUpViewModel vm, {required bool isWide}) {
+    final nicknameAvailable = vm.nicknameCheckStatus == CheckStatus.available;
+    final emailAvailable = vm.emailCheckStatus == CheckStatus.available;
+
     return [
       MovieLogTextFormField(
         controller: _nicknameController,
@@ -73,7 +79,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
         hint: isWide ? '영화로운 닉네임을 입력하세요' : '닉네임을 입력해주세요',
         validator: Validators.nickname,
         textInputAction: TextInputAction.next,
-        onChanged: (_) => _refresh(),
+        errorText: vm.nicknameErrorText,
+        successText: nicknameAvailable ? '사용할 수 있는 닉네임입니다.' : null,
+        isVerified: nicknameAvailable,
+        trailing: MovieLogButton(
+          label: '중복 확인',
+          isLoading: vm.nicknameCheckStatus == CheckStatus.checking,
+          onPressed: vm.canCheckNickname
+              ? () => vm.checkNickname(_nicknameController.text)
+              : null,
+        ),
+        onChanged: vm.onNicknameChanged,
         onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
       ),
       const SizedBox(height: 20),
@@ -85,7 +101,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
         validator: Validators.email,
         keyboardType: TextInputType.emailAddress,
         textInputAction: TextInputAction.next,
-        onChanged: (_) => _refresh(),
+        errorText: vm.emailErrorText,
+        successText: emailAvailable ? '사용할 수 있는 이메일입니다.' : null,
+        isVerified: emailAvailable,
+        trailing: MovieLogButton(
+          label: '중복 확인',
+          isLoading: vm.emailCheckStatus == CheckStatus.checking,
+          onPressed: vm.canCheckEmail
+              ? () => vm.checkEmail(_emailController.text)
+              : null,
+        ),
+        onChanged: vm.onEmailChanged,
         onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
       ),
       const SizedBox(height: 20),
@@ -103,15 +129,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     ];
   }
 
-  // 약관, 가입 버튼, 로그인 문구: 두 레이아웃에서 공통으로 사용
-  List<Widget> _buildBottom() {
+  List<Widget> _buildBottom(SignUpViewModel vm) {
     return [
       TermsCheckbox(
         value: _agreedToTerms,
         onChanged: (checked) => setState(() => _agreedToTerms = checked),
       ),
       const SizedBox(height: 12),
-      SignUpButton(enabled: _canSubmit, onPressed: _submit),
+      MovieLogButton(
+        label: '가입하기',
+        width: double.infinity,
+        onPressed: _canSubmit(vm) ? _submit : null,
+      ),
       const SizedBox(height: 16),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -138,8 +167,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     ];
   }
 
-  // 휴대폰: 입력창은 위, 약관·버튼은 화면 아래에 붙임
-  Widget _buildMobile(double viewHeight) {
+  Widget _buildMobile(SignUpViewModel vm, double viewHeight) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -156,14 +184,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Text(
                   '환영합니다!\n간단한 정보만 입력하고 시작해보세요.',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.black),
+                  style:
+                      AppTextStyles.bodySmall.copyWith(color: AppColors.black),
                 ),
                 const SizedBox(height: 32),
-                ..._buildFields(isWide: false),
+                ..._buildFields(vm, isWide: false),
                 const Spacer(),
                 const SizedBox(height: 24),
-                ..._buildBottom(),
+                ..._buildBottom(vm),
                 const SizedBox(height: 24),
               ],
             ),
@@ -173,8 +201,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // 넓은 화면: Form을 가운데에 두고 최대 너비를 560으로 제한
-  Widget _buildWide(double viewHeight) {
+  Widget _buildWide(SignUpViewModel vm, double viewHeight) {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: _maxFormWidth),
@@ -206,9 +233,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       style: AppTextStyles.label,
                     ),
                     const SizedBox(height: 32),
-                    ..._buildFields(isWide: true),
+                    ..._buildFields(vm, isWide: true),
                     const SizedBox(height: 20),
-                    ..._buildBottom(),
+                    ..._buildBottom(vm),
                   ],
                 ),
               ),
@@ -221,7 +248,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 부모가 허용한 너비가 700 이상일 때만 넓은 화면 레이아웃 사용
+    // ViewModel 상태가 바뀌면 화면을 다시 그린다
+    final vm = context.watch<SignUpViewModel>();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
@@ -241,8 +270,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               builder: (context, bodyConstraints) {
                 final viewHeight = bodyConstraints.maxHeight;
                 return isWide
-                    ? _buildWide(viewHeight)
-                    : _buildMobile(viewHeight);
+                    ? _buildWide(vm, viewHeight)
+                    : _buildMobile(vm, viewHeight);
               },
             ),
           ),
