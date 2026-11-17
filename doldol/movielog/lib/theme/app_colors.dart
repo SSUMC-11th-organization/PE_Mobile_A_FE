@@ -18,4 +18,6 @@ abstract final class AppColors {
   static const chipGray = Color(0xFFEAE6EF);    // 상세 태그 배경
   static const scrim = Color(0xCC000000);       // 이미지 위 어두운 막
   static const clear = Color(0x00000000);       // 투명
+  static const info = Color(0xFF1565C0);      // 확인 중 문구
+  static const success = Color(0xFF2E7D32);   // 사용 가능 문구
 }

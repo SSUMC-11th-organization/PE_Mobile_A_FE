@@ -3,11 +3,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
-import 'data/services/member_check_service.dart';
 import 'data/services/rating_api_service.dart';
+import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'view_models/learning_member_session.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,11 +29,15 @@ class MovieLogApp extends StatelessWidget {
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
         ),
-        Provider<MemberCheckService>(
-          create: (_) => MemberCheckService(movieLogClient),
+        Provider<SignUpService>(
+          create: (_) => SignUpService(movieLogClient),
         ),
         Provider<RatingApiService>(
           create: (_) => RatingApiService(movieLogClient),
+        ),
+        // 가입 결과의 memberId를 보관하는 학습용 세션 (앱을 재시작하면 사라진다)
+        ChangeNotifierProvider<LearningMemberSession>(
+          create: (_) => LearningMemberSession(),
         ),
       ],
       child: MaterialApp.router(

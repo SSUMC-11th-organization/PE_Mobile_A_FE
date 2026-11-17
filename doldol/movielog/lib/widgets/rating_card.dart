@@ -5,9 +5,16 @@ import '../theme/app_text_styles.dart';
 import 'tmdb_poster_image.dart';
 
 class RatingCard extends StatelessWidget {
-  const RatingCard({super.key, required this.entry});
+  const RatingCard({
+    super.key,
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final RatingWithMovie entry;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   static const double _posterWidth = 88;
   static const double _posterHeight = 132;
@@ -39,7 +46,6 @@ class RatingCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: movie == null
-                // 영화 정보가 없으면 연보라 빈 박스
                 ? Container(
                     width: _posterWidth,
                     height: _posterHeight,
@@ -96,7 +102,62 @@ class RatingCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              _ActionButton(
+                label: '수정',
+                background: AppColors.lavender,
+                foreground: AppColors.deepViolet,
+                onPressed: onEdit,
+              ),
+              const SizedBox(height: 8),
+              _ActionButton(
+                label: '삭제',
+                background: AppColors.errorBg,
+                foreground: AppColors.error,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 56,
+      height: 32,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }

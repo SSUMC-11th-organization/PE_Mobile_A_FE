@@ -1,14 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/validators.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
+import '../view_models/submit_status.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
 import '../widgets/movielog_text_form_field.dart';
 import '../widgets/terms_checkbox.dart';
+
+String? _statusTextOf(CheckStatus status, String name) {
+  return switch (status) {
+    CheckStatus.checking => '$name 사용 가능 여부를 확인 중입니다.',
+    CheckStatus.available => '사용 가능한 $name입니다.',
+    _ => null,
+  };
+}
+
+Color? _statusColorOf(CheckStatus status) {
+  return switch (status) {
+    CheckStatus.checking => AppColors.info,
+    CheckStatus.available => AppColors.success,
+    _ => null,
+  };
+}
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -33,27 +52,51 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   bool _agreedToTerms = false;
 
-  // 모든 입력이 유효하고 중복 확인을 통과했으며 약관에 동의했을 때만 활성화
+  // 로컬 검증 + 중복 확인 통과 + 약관 동의 + 제출 중이 아닐 때만 활성화
   bool _canSubmit(SignUpViewModel vm) =>
       Validators.nickname(_nicknameController.text) == null &&
       Validators.email(_emailController.text) == null &&
       Validators.password(_passwordController.text) == null &&
       vm.nicknameCheckStatus == CheckStatus.available &&
       vm.emailCheckStatus == CheckStatus.available &&
-      _agreedToTerms;
+      _agreedToTerms &&
+      vm.submitStatus != SubmitStatus.submitting;
 
-  void _refresh() => setState(() {});
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
-  void _submit() {
-    // 버튼을 누르면 Form 전체를 다시 검증 (실제 가입 요청은 보내지 않는다)
+  Future<void> _submit() async {
+    // 버튼을 누르면 Form 전체를 다시 검증
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('회원가입이 완료되었어요!')),
+
+    final vm = context.read<SignUpViewModel>();
+    final session = context.read<LearningMemberSession>();
+
+    await vm.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
     );
-    context.go('/home');
+    if (!mounted) return;
+
+    final memberId = vm.createdMemberId;
+    if (vm.submitStatus == SubmitStatus.success && memberId != null) {
+      session.setMemberId(memberId); // 이후 평점 요청의 path에 사용
+      _showSnackBar('회원가입이 완료되었어요!');
+      context.go('/movies');
+      return;
+    }
+
+    final message = vm.snackbarMessage;
+    if (message != null) _showSnackBar(message);
   }
 
   @override
@@ -68,8 +111,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   List<Widget> _buildFields(SignUpViewModel vm, {required bool isWide}) {
-    final nicknameAvailable = vm.nicknameCheckStatus == CheckStatus.available;
-    final emailAvailable = vm.emailCheckStatus == CheckStatus.available;
+    final nicknameStatus = vm.nicknameCheckStatus;
+    final emailStatus = vm.emailCheckStatus;
 
     return [
       MovieLogTextFormField(
@@ -80,11 +123,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         validator: Validators.nickname,
         textInputAction: TextInputAction.next,
         errorText: vm.nicknameErrorText,
-        successText: nicknameAvailable ? '사용할 수 있는 닉네임입니다.' : null,
-        isVerified: nicknameAvailable,
+        statusText: _statusTextOf(nicknameStatus, '닉네임'),
+        statusColor: _statusColorOf(nicknameStatus),
+        isVerified: nicknameStatus == CheckStatus.available,
         trailing: MovieLogButton(
           label: '중복 확인',
-          isLoading: vm.nicknameCheckStatus == CheckStatus.checking,
+          isLoading: nicknameStatus == CheckStatus.checking,
           onPressed: vm.canCheckNickname
               ? () => vm.checkNickname(_nicknameController.text)
               : null,
@@ -102,11 +146,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         keyboardType: TextInputType.emailAddress,
         textInputAction: TextInputAction.next,
         errorText: vm.emailErrorText,
-        successText: emailAvailable ? '사용할 수 있는 이메일입니다.' : null,
-        isVerified: emailAvailable,
+        statusText: _statusTextOf(emailStatus, '이메일'),
+        statusColor: _statusColorOf(emailStatus),
+        isVerified: emailStatus == CheckStatus.available,
         trailing: MovieLogButton(
           label: '중복 확인',
-          isLoading: vm.emailCheckStatus == CheckStatus.checking,
+          isLoading: emailStatus == CheckStatus.checking,
           onPressed: vm.canCheckEmail
               ? () => vm.checkEmail(_emailController.text)
               : null,
@@ -123,7 +168,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         validator: Validators.password,
         isPassword: true,
         textInputAction: TextInputAction.done,
-        onChanged: (_) => _refresh(),
+        // 서버가 거부한 비밀번호는 로컬 검증을 통과해도 에러로 보인다
+        errorText: vm.passwordErrorText,
+        onChanged: (_) => vm.onPasswordChanged(),
         onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
       ),
     ];
@@ -139,6 +186,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       MovieLogButton(
         label: '가입하기',
         width: double.infinity,
+        disabledColor: AppColors.disabledViolet,
+        isLoading: vm.submitStatus == SubmitStatus.submitting,
         onPressed: _canSubmit(vm) ? _submit : null,
       ),
       const SizedBox(height: 16),
@@ -248,7 +297,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ViewModel 상태가 바뀌면 화면을 다시 그린다
     final vm = context.watch<SignUpViewModel>();
 
     return LayoutBuilder(
