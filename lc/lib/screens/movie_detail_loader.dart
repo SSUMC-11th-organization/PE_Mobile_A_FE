@@ -7,8 +7,9 @@ import '../data/services/tmdb_movie_service.dart';
 import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
 import '../utils/tmdb_movie_format.dart';
-import '../view_models/learning_member_session.dart';
+import '../view_models/auth_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
+import '../view_models/session_rating_store.dart';
 import '../widgets/movie_list_error.dart';
 import 'movie_detail_screen.dart';
 
@@ -91,7 +92,8 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
         return ChangeNotifierProvider<MovieDetailViewModel>(
           create: (context) => MovieDetailViewModel(
             context.read<RatingApiService>(),
-            context.read<LearningMemberSession>().memberId,
+            context.read<SessionRatingStore>(),
+            context.read<AuthViewModel>(),
             args.movie,
           ),
           child: MovieDetailScreen(args: args),

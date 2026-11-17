@@ -7,14 +7,13 @@ import '../view_models/my_ratings_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/movie_list_empty.dart';
-import '../widgets/movie_list_error.dart';
 import '../widgets/movie_list_loading.dart';
 import '../widgets/movielog_button.dart';
 import '../widgets/my_rating_card.dart';
 import '../widgets/rating_dialog.dart';
 
 /// 마이페이지 위에 열리는 자식 화면. 하단 NavigationBar 없이 뒤로가기와 중앙 제목만 둔다.
-/// 평점의 조회·수정·삭제(개별·다중)를 이 화면이 맡는다.
+/// 이번 세션에서 등록한 평점의 수정·삭제(개별·다중)를 이 화면이 맡는다.
 class MyRatingsScreen extends StatelessWidget {
   const MyRatingsScreen({super.key});
 
@@ -57,15 +56,9 @@ class _Body extends StatelessWidget {
       MyRatingsLoadStatus.loading => const MovieListLoading(
         message: '평점을 불러오는 중이에요',
       ),
-      MyRatingsLoadStatus.error => MovieListError(
-        // 저장은 성공했는데 조회만 실패한 경우에는 그 사실을 먼저 알린다.
-        message: viewModel.refreshWarning ?? viewModel.message,
-        description: '문제가 계속되면 잠시 후 다시 시도해 주세요.',
-        onRetry: viewModel.load, // 조회만 다시 시도한다. 쓰기 요청은 다시 보내지 않는다.
-      ),
       MyRatingsLoadStatus.empty => const MovieListEmpty(
-        title: '아직 등록한 평점이 없어요.',
-        description: '영화에 평점을 남기면 여기에 모여요.',
+        title: '이번 로그인에서 등록한 평점이 없어요.',
+        description: '영화 상세에서 평점을 남기면 여기에 모여요.',
       ),
       MyRatingsLoadStatus.success => _RatingsList(viewModel: viewModel),
     };
@@ -122,8 +115,8 @@ class _Header extends StatelessWidget {
           child: Text(
             isEdit
                 ? '${viewModel.selectedRatingIds.length}개 선택'
-                // 로그인 기능이 없어 가입한 학습용 회원의 평점임을 숨기지 않는다.
-                : '학습용 회원(memberId ${viewModel.memberId})의 평점이에요.',
+                // v7에는 토큰 기반 "내 평점 목록" API가 없어 이번 세션에서 등록한 평점만 보여준다.
+                : '이번 로그인에서 등록한 평점이에요.',
             style: TextStyle(
               fontSize: isEdit ? 14 : 12,
               fontWeight: isEdit ? FontWeight.w600 : FontWeight.w400,

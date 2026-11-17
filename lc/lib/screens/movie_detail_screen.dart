@@ -260,8 +260,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildActionBar() {
-    final canRate = context.watch<MovieDetailViewModel>().canRate;
-
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.warmWhite,
@@ -274,28 +272,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!canRate) ...[
-                // 회원가입으로 memberId를 얻기 전에는 서버에 평점을 보낼 수 없다.
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        '평점을 남기려면 먼저 학습용 회원가입이 필요해요.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 18 / 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => context.go('/register'),
-                      child: const Text('회원가입'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
               Row(
             children: [
               Expanded(
@@ -323,7 +299,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: canRate ? _openRatingDialog : null,
+                  onPressed: _openRatingDialog,
                   icon: const Icon(Icons.rate_review_outlined, size: 20),
                   label: const Text('평점 남기기'),
                   style: ElevatedButton.styleFrom(

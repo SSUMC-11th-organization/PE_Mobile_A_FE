@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:movielog/utils/signup_validators.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 
 void main() {
   group('닉네임(2~12자)', () {
@@ -64,26 +63,6 @@ void main() {
 
     test('비밀번호의 공백은 그대로 둔다 (trim하지 않는다)', () {
       expect(SignUpValidators.password('Pass 1!aa'), isNull);
-    });
-  });
-
-  group('LearningMemberSession', () {
-    test('처음에는 memberId가 없고, 설정하면 알림이 간다', () {
-      final session = LearningMemberSession();
-      var notified = 0;
-      session.addListener(() => notified++);
-      expect(session.memberId, isNull);
-
-      session.setMemberId(42);
-
-      expect(session.memberId, 42);
-      expect(notified, 1);
-    });
-
-    test('clear하면 다시 비어 있다', () {
-      final session = LearningMemberSession(7)..clear();
-
-      expect(session.memberId, isNull);
     });
   });
 }
