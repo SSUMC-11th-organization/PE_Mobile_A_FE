@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/network/api_error.dart';
 import '../data/models/rating_request.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -58,7 +59,9 @@ class _RatingDialogState extends State<RatingDialog> {
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
-        _errorText = '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        _errorText = error is ActionFailure
+            ? error.message
+            : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.';
       });
     }
   }

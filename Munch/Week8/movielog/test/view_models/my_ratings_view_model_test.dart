@@ -1,38 +1,51 @@
-import 'dart:async';
-
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/core/network/api_error.dart';
+import 'package:movielog/data/models/rating_dto.dart';
+import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 
+import '../fakes/fake_auth.dart';
 import '../fakes/fake_rating_api_service.dart';
 import '../fakes/fake_tmdb_movie_service.dart';
 
 void main() {
   late FakeRatingApiService ratingService;
   late FakeTmdbMovieService movieService;
+  late SessionRatingStore store;
+  late InMemoryTokenStorage tokenStorage;
+  late AuthViewModel auth;
   late MyRatingsViewModel viewModel;
 
-  setUp(() {
+  void seed(List<RatingDto> ratings) {
+    for (final rating in ratings.reversed) {
+      store.add(rating);
+      ratingService.movieIdsByRatingId[rating.ratingId] = rating.movieId;
+    }
+  }
+
+  setUp(() async {
     ratingService = FakeRatingApiService();
     movieService = FakeTmdbMovieService();
-    viewModel = MyRatingsViewModel(ratingService, movieService, 1);
+    store = SessionRatingStore();
+    tokenStorage = InMemoryTokenStorage('token');
+    auth = AuthViewModel(
+      FakeAuthApiService(),
+      FakeMemberApiService(),
+      tokenStorage,
+      store,
+    );
+    await auth.restoreSession();
+    viewModel = MyRatingsViewModel(ratingService, movieService, store, auth);
   });
 
-  tearDown(() => viewModel.dispose());
-
-  test('memberId 1을 조회하고 로딩 중에는 loading 상태다', () async {
-    ratingService.pending = Completer<void>();
-    final future = viewModel.load();
-
-    expect(viewModel.status, MyRatingsLoadStatus.loading);
-    expect(ratingService.requestedMemberIds, [1]);
-
-    ratingService.pending!.complete();
-    await future;
+  tearDown(() {
+    viewModel.dispose();
+    auth.dispose();
   });
 
-  test('평점이 있으면 영화 정보와 묶어 success', () async {
-    ratingService.ratings = [ratingFixture(1, 550, comment: '최고')];
+  test('세션에 등록한 평점을 영화 정보와 묶어 success', () async {
+    seed([ratingFixture(1, 550, comment: '최고')]);
     movieService.movieDetails = {550: movieFixture(550)};
 
     await viewModel.load();
@@ -42,21 +55,13 @@ void main() {
     expect(viewModel.message, isNull);
   });
 
-  test('빈 배열은 error가 아니라 empty', () async {
+  test('세션에 등록한 평점이 없으면 empty', () async {
     await viewModel.load();
     expect(viewModel.status, MyRatingsLoadStatus.empty);
   });
 
-  test('평점 조회 실패는 error와 상태 코드별 문구', () async {
-    ratingService.failStatus = 404;
-    await viewModel.load();
-
-    expect(viewModel.status, MyRatingsLoadStatus.error);
-    expect(viewModel.message, '존재하지 않는 회원입니다.');
-  });
-
   test('영화 상세 조회 실패는 평점을 유지하고 placeholder 안내만 한다', () async {
-    ratingService.ratings = [ratingFixture(1, 550), ratingFixture(2, 13)];
+    seed([ratingFixture(1, 550), ratingFixture(2, 13)]);
     movieService.movieDetails = {550: movieFixture(550)};
     movieService.failingMovieIds = {13};
 
@@ -68,26 +73,70 @@ void main() {
     expect(viewModel.message, contains('일부 영화 정보'));
   });
 
-  test('같은 movieId는 한 번만 조회하고, 실패한 id는 다음 로딩에서 다시 조회한다', () async {
-    ratingService.ratings = [
-      ratingFixture(1, 550),
-      ratingFixture(2, 550),
-      ratingFixture(3, 13),
-    ];
-    movieService.movieDetails = {550: movieFixture(550), 13: movieFixture(13)};
-    movieService.failingMovieIds = {13};
-
+  test('수정 성공은 응답 Rating으로 목록과 세션 저장소를 교체한다', () async {
+    seed([ratingFixture(1, 13, comment: '기존')]);
     await viewModel.load();
-    expect(movieService.findMovieCalls, [550, 13]);
 
-    movieService.failingMovieIds = {};
+    await viewModel.updateRating(ratingId: 1, score: 2, comment: '수정');
+
+    expect(ratingService.updates.single.comment, '수정');
+    expect(viewModel.ratings.single.rating.score, 2);
+    expect(viewModel.ratings.single.rating.movieId, 13);
+    expect(store.ratings.single.comment, '수정');
+  });
+
+  test('삭제 성공은 목록과 세션 저장소에서 제거한다', () async {
+    seed([ratingFixture(1, 13)]);
     await viewModel.load();
-    expect(movieService.findMovieCalls, [550, 13, 13]);
-    expect(viewModel.message, isNull);
+
+    await viewModel.deleteRating(1);
+
+    expect(viewModel.status, MyRatingsLoadStatus.empty);
+    expect(store.ratings, isEmpty);
+  });
+
+  test('403은 안내만 하고 로그아웃하지 않는다', () async {
+    seed([ratingFixture(1, 13)]);
+    await viewModel.load();
+    ratingService.writeFailure = apiError(403, 'RATING403_1');
+
+    await expectLater(viewModel.deleteRating(1), throwsA(isA<ActionFailure>()));
+
+    expect(viewModel.message, '본인이 작성한 평점만 수정하거나 삭제할 수 있어요.');
+    expect(auth.status, AuthStatus.signedIn);
+    expect(tokenStorage.token, 'token');
+    expect(viewModel.ratings, hasLength(1));
+  });
+
+  test('404는 이미 없는 평점을 목록에서 정리한다', () async {
+    seed([ratingFixture(1, 13), ratingFixture(2, 14)]);
+    await viewModel.load();
+    ratingService.writeFailure = apiError(404, 'RATING404_1');
+
+    await expectLater(
+      viewModel.updateRating(ratingId: 1, score: 3),
+      throwsA(isA<ActionFailure>()),
+    );
+
+    expect(viewModel.ratings.single.rating.ratingId, 2);
+    expect(auth.status, AuthStatus.signedIn);
+  });
+
+  test('401은 세션을 정리하고 토큰을 삭제한다', () async {
+    seed([ratingFixture(1, 13)]);
+    await viewModel.load();
+    ratingService.writeFailure = apiError(401, 'AUTH401_4');
+
+    await expectLater(viewModel.deleteRating(1), throwsA(isA<ActionFailure>()));
+
+    expect(auth.status, AuthStatus.signedOut);
+    expect(auth.sessionExpired, isTrue);
+    expect(tokenStorage.token, isNull);
+    expect(store.ratings, isEmpty);
   });
 
   test('다중 삭제 일부 실패 시 성공 항목만 사라지고 실패 항목은 선택을 유지한다', () async {
-    ratingService.ratings = [ratingFixture(1, 13), ratingFixture(2, 14)];
+    seed([ratingFixture(1, 13), ratingFixture(2, 14)]);
     ratingService.failingDeleteIds = {2};
     await viewModel.load();
     viewModel
@@ -106,7 +155,7 @@ void main() {
   });
 
   test('다중 삭제가 모두 성공하면 선택 모드를 끝낸다', () async {
-    ratingService.ratings = [ratingFixture(1, 13)];
+    seed([ratingFixture(1, 13)]);
     await viewModel.load();
     viewModel
       ..startSelection()
@@ -119,45 +168,15 @@ void main() {
     expect(viewModel.failedDeleteCount, 0);
   });
 
-  test('수정 성공 후 GET만 실패하면 예외 없이 재조회 안내를 남긴다', () async {
-    ratingService.failStatus = 500;
-
-    await viewModel.updateRating(ratingId: 1, score: 3, comment: '수정');
-
-    expect(ratingService.updates.single.comment, '수정');
-    expect(viewModel.status, MyRatingsLoadStatus.error);
-    expect(viewModel.refreshWarning, contains('저장은 완료'));
-
-    ratingService.failStatus = null;
+  test('로그아웃 뒤 늦게 도착한 수정 응답은 반영하지 않는다', () async {
+    seed([ratingFixture(1, 13, comment: '기존')]);
     await viewModel.load();
-    expect(viewModel.refreshWarning, isNull);
-  });
 
-  test('400 쓰기 실패는 다시 던지고 재조회하지 않는다', () async {
-    ratingService.writeFailure = (
-      status: 400,
-      code: 'COMMON400',
-      message: '별점은 5점 이하여야 합니다.',
-    );
+    final pending = viewModel.updateRating(ratingId: 1, score: 1);
+    await auth.logout();
+    await pending;
 
-    await expectLater(
-      viewModel.updateRating(ratingId: 1, score: 3),
-      throwsA(isA<DioException>()),
-    );
-    expect(viewModel.message, '별점은 5점 이하여야 합니다.');
-    expect(ratingService.requestedMemberIds, isEmpty);
-  });
-
-  test('403·404 쓰기 실패는 다시 던지고 목록을 재조회한다', () async {
-    for (final (status, code) in [(403, 'COMMON403'), (404, 'COMMON404')]) {
-      ratingService.requestedMemberIds.clear();
-      ratingService.writeFailure = (status: status, code: code, message: 'x');
-
-      await expectLater(
-        viewModel.deleteRating(1),
-        throwsA(isA<DioException>()),
-      );
-      expect(ratingService.requestedMemberIds, [1]);
-    }
+    expect(store.ratings, isEmpty);
+    expect(viewModel.ratings.single.rating.comment, '기존');
   });
 }

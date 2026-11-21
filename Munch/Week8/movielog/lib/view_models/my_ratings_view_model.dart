@@ -1,19 +1,29 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/network/api_error.dart';
+import '../data/models/rating_dto.dart';
 import '../data/models/rating_with_movie.dart';
 import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
+import 'auth_view_model.dart';
+import 'session_rating_store.dart';
 
-enum MyRatingsLoadStatus { idle, loading, success, empty, error }
+enum MyRatingsLoadStatus { idle, loading, success, empty }
 
 class MyRatingsViewModel extends ChangeNotifier {
-  MyRatingsViewModel(this._service, this._movieService, this.memberId);
+  MyRatingsViewModel(
+    this._service,
+    this._movieService,
+    this._sessionRatings,
+    this._auth,
+  );
 
   final RatingApiService _service;
   final TmdbMovieService _movieService;
-  final int memberId;
+  final SessionRatingStore _sessionRatings;
+  final AuthViewModel _auth;
   final Map<int, TmdbMovieDto?> _movieCache = {};
   int _requestVersion = 0;
   bool _disposed = false;
@@ -21,7 +31,6 @@ class MyRatingsViewModel extends ChangeNotifier {
   List<RatingWithMovie> ratings = const [];
   MyRatingsLoadStatus status = MyRatingsLoadStatus.idle;
   String? message;
-  String? refreshWarning;
 
   final Set<int> selectedRatingIds = {};
   bool isSelectionMode = false;
@@ -48,70 +57,55 @@ class MyRatingsViewModel extends ChangeNotifier {
     final version = ++_requestVersion;
     status = MyRatingsLoadStatus.loading;
     message = null;
-    refreshWarning = null;
     notifyListeners();
 
     bool isStale() => _disposed || version != _requestVersion;
 
-    try {
-      final rawRatings = await _service.fetchMyRatings(memberId);
+    for (final rating in _sessionRatings.ratings) {
       if (isStale()) return;
-
-      final entries = <RatingWithMovie>[];
-      var missingMovies = 0;
-      for (final rating in rawRatings) {
-        if (isStale()) return;
-        if (!_movieCache.containsKey(rating.movieId)) {
-          try {
-            _movieCache[rating.movieId] = await _movieService.findMovieById(
-              rating.movieId,
-            );
-          } on DioException {
-            // 일시적인 실패는 캐시하지 않고 다음 로딩에서 다시 조회한다.
-          }
-        }
-        final movie = _movieCache[rating.movieId];
-        if (movie == null) missingMovies++;
-        entries.add(RatingWithMovie(rating: rating, movie: movie));
+      if (_movieCache.containsKey(rating.movieId)) continue;
+      try {
+        _movieCache[rating.movieId] = await _movieService.findMovieById(
+          rating.movieId,
+        );
+      } on DioException {
+        // 일시적인 실패는 캐시하지 않고 다음 로딩에서 다시 조회한다.
       }
-      if (isStale()) return;
-
-      ratings = entries;
-      status = entries.isEmpty
-          ? MyRatingsLoadStatus.empty
-          : MyRatingsLoadStatus.success;
-      if (missingMovies > 0) {
-        message = '일부 영화 정보를 가져오지 못해 제목·포스터를 대신 표시합니다.';
-      }
-    } on DioException catch (error) {
-      if (isStale()) return;
-      ratings = const [];
-      status = MyRatingsLoadStatus.error;
-      message = writeMyRatingsErrorMessage(error);
     }
-    if (!isStale()) notifyListeners();
-  }
+    if (isStale()) return;
 
-  Future<void> _refreshAfterWrite() async {
-    if (_disposed) return;
-    await load();
-    if (!_disposed && status == MyRatingsLoadStatus.error) {
-      refreshWarning = '저장은 완료됐지만 목록을 불러오지 못했습니다. 조회만 다시 시도해 주세요.';
-      notifyListeners();
+    _rebuild();
+    if (ratings.any((entry) => entry.movie == null)) {
+      message = '일부 영화 정보를 가져오지 못해 제목·포스터를 대신 표시합니다.';
     }
-  }
-
-  Future<void> _handleWriteError(DioException error) async {
-    if (_disposed) return;
-    message = writeErrorMessage(error);
     notifyListeners();
-    if (shouldRefreshAfterRatingError(error)) {
-      await load();
-      if (!_disposed && status != MyRatingsLoadStatus.error) {
-        message = writeErrorMessage(error);
-        notifyListeners();
-      }
+  }
+
+  void _rebuild() {
+    ratings = [
+      for (final rating in _sessionRatings.ratings)
+        RatingWithMovie(rating: rating, movie: _movieCache[rating.movieId]),
+    ];
+    status = ratings.isEmpty
+        ? MyRatingsLoadStatus.empty
+        : MyRatingsLoadStatus.success;
+  }
+
+  // 화면 갱신까지 처리한 뒤 사용자에게 보여줄 문구를 담아 던진다.
+  Future<Never> _handleWriteError(DioException error, int ratingId) async {
+    final failureMessage = ratingErrorMessage(error);
+    if (isSessionExpired(error)) {
+      await _auth.expireSession();
+      throw ActionFailure(failureMessage);
     }
+    if (apiErrorCode(error) == 'RATING404_1') {
+      _sessionRatings.remove(ratingId);
+      selectedRatingIds.remove(ratingId);
+      _rebuild();
+    }
+    message = failureMessage;
+    if (!_disposed) notifyListeners();
+    throw ActionFailure(failureMessage);
   }
 
   Future<void> updateRating({
@@ -119,55 +113,80 @@ class MyRatingsViewModel extends ChangeNotifier {
     required int score,
     String? comment,
   }) async {
+    final version = _auth.sessionVersion;
+    final RatingDto updated;
     try {
-      await _service.updateRating(
-        memberId: memberId,
+      updated = await _service.updateRating(
         ratingId: ratingId,
         score: score,
         comment: comment,
       );
     } on DioException catch (error) {
-      await _handleWriteError(error);
-      rethrow;
+      if (_disposed || version != _auth.sessionVersion) rethrow;
+      await _handleWriteError(error, ratingId);
     }
-    await _refreshAfterWrite();
+    if (_disposed || version != _auth.sessionVersion) return;
+    _sessionRatings.replace(updated);
+    message = null;
+    _rebuild();
+    notifyListeners();
   }
 
   Future<void> deleteRating(int ratingId) async {
+    final version = _auth.sessionVersion;
     try {
-      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+      await _service.deleteRating(ratingId);
     } on DioException catch (error) {
-      await _handleWriteError(error);
-      rethrow;
+      if (_disposed || version != _auth.sessionVersion) rethrow;
+      await _handleWriteError(error, ratingId);
     }
-    await _refreshAfterWrite();
+    if (_disposed || version != _auth.sessionVersion) return;
+    _sessionRatings.remove(ratingId);
+    selectedRatingIds.remove(ratingId);
+    message = null;
+    _rebuild();
+    notifyListeners();
   }
 
   Future<void> deleteSelectedRatings() async {
     if (isDeletingSelected || selectedRatingIds.isEmpty) return;
+    final version = _auth.sessionVersion;
     isDeletingSelected = true;
+    failedDeleteCount = 0;
+    message = null;
     notifyListeners();
+
     var failed = 0;
-    try {
-      for (final ratingId in selectedRatingIds.toList()) {
-        try {
-          await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+    var expired = false;
+    for (final ratingId in selectedRatingIds.toList()) {
+      try {
+        await _service.deleteRating(ratingId);
+        if (_disposed || version != _auth.sessionVersion) return;
+        _sessionRatings.remove(ratingId);
+        selectedRatingIds.remove(ratingId);
+      } on DioException catch (error) {
+        if (_disposed || version != _auth.sessionVersion) return;
+        if (isSessionExpired(error)) {
+          expired = true;
+          break;
+        }
+        if (apiErrorCode(error) == 'RATING404_1') {
+          _sessionRatings.remove(ratingId);
           selectedRatingIds.remove(ratingId);
-        } on DioException {
+        } else {
           failed++;
         }
       }
-    } finally {
-      isDeletingSelected = false;
-      if (!_disposed) notifyListeners();
     }
-    await _refreshAfterWrite();
+
+    isDeletingSelected = false;
+    if (expired) {
+      await _auth.expireSession();
+      return;
+    }
     if (_disposed) return;
     failedDeleteCount = failed;
-    if (status == MyRatingsLoadStatus.success) {
-      final existingIds = ratings.map((entry) => entry.rating.ratingId).toSet();
-      selectedRatingIds.retainWhere(existingIds.contains);
-    }
+    _rebuild();
     if (selectedRatingIds.isEmpty) isSelectionMode = false;
     if (failed > 0) {
       message = '$failed개 항목을 삭제하지 못했습니다. 선택된 항목을 다시 확인해 주세요.';

@@ -2,39 +2,39 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/movie_log_app.dart';
-import 'package:movielog/router/app_router.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
+import 'package:movielog/data/models/rating_dto.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 import 'package:movielog/widgets/loading_overlay.dart';
 
-import '../fakes/fake_sign_up_service.dart';
+import '../fakes/fake_auth.dart';
 import '../fakes/fake_rating_api_service.dart';
 import '../fakes/fake_tmdb_movie_service.dart';
+import '../fakes/pump_app.dart';
 
 Future<void> pumpProfile(
   WidgetTester tester,
   FakeRatingApiService ratingService, {
+  List<RatingDto> ratings = const [],
   FakeTmdbMovieService? movieService,
-  bool signedIn = true,
 }) async {
-  await tester.pumpWidget(
-    MovieLogApp(
-      movieService: movieService ?? FakeTmdbMovieService(),
-      signUpService: FakeSignUpService(),
-      memberSession: signedIn
-          ? (LearningMemberSession()..setMemberId(1))
-          : null,
-      ratingApiService: ratingService,
-    ),
+  final store = SessionRatingStore();
+  for (final rating in ratings.reversed) {
+    store.add(rating);
+    ratingService.movieIdsByRatingId[rating.ratingId] = rating.movieId;
+  }
+  await pumpApp(
+    tester,
+    ratingService: ratingService,
+    movieService: movieService,
+    sessionRatingStore: store,
+    location: '/my',
   );
-  AppRouter.router.go('/my');
-  await tester.pumpAndSettle();
 }
 
 Future<void> openMyRatings(WidgetTester tester) async {
   await tester.ensureVisible(find.text('내가 등록한 평점'));
   await tester.tap(find.text('내가 등록한 평점'));
-  await tester.pump();
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -43,15 +43,13 @@ void main() {
       ..movieDetails = {550: movieFixture(550)};
     await pumpProfile(
       tester,
-      FakeRatingApiService(
-        ratings: [ratingFixture(1, 550, comment: '최고의 영화!')],
-      ),
+      FakeRatingApiService(),
+      ratings: [ratingFixture(1, 550, comment: '최고의 영화!')],
       movieService: movieService,
     );
     expect(find.byType(NavigationBar), findsOneWidget);
 
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.text('영화 550'), findsOneWidget);
@@ -64,38 +62,20 @@ void main() {
     expect(find.text('내 프로필'), findsOneWidget);
   });
 
-  testWidgets('Loading 상태', (tester) async {
-    final service = FakeRatingApiService()..pending = Completer<void>();
-    await pumpProfile(tester, service);
-    await openMyRatings(tester);
-
-    expect(find.text('평점을 불러오는 중입니다.'), findsOneWidget);
-
-    service.pending!.complete();
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('Empty 상태', (tester) async {
+  testWidgets('이번 세션에 등록한 평점이 없으면 Empty 안내', (tester) async {
     await pumpProfile(tester, FakeRatingApiService());
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
-    expect(find.text('등록된 평점이 없습니다.'), findsOneWidget);
+    expect(find.textContaining('이번 로그인에서 등록한 평점이 없습니다.'), findsOneWidget);
   });
 
-  testWidgets('Error 상태에서 다시 시도하면 Success로 바뀐다', (tester) async {
-    final service = FakeRatingApiService()..failStatus = 500;
-    await pumpProfile(tester, service);
+  testWidgets('TMDB에 없는 영화는 placeholder로 표시한다', (tester) async {
+    await pumpProfile(
+      tester,
+      FakeRatingApiService(),
+      ratings: [ratingFixture(1, 13)],
+    );
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
-
-    expect(find.text('평점을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
-
-    service
-      ..failStatus = null
-      ..ratings = [ratingFixture(1, 13)];
-    await tester.tap(find.text('다시 시도'));
-    await tester.pumpAndSettle();
 
     expect(find.text('영화 #13'), findsOneWidget);
     expect(find.text('영화 정보 없음'), findsOneWidget);
@@ -104,10 +84,10 @@ void main() {
   testWidgets('편집 모드: 선택 수 표시, 선택해야 삭제 활성화, 취소하면 복귀', (tester) async {
     await pumpProfile(
       tester,
-      FakeRatingApiService(ratings: [ratingFixture(1, 13)]),
+      FakeRatingApiService(),
+      ratings: [ratingFixture(1, 13)],
     );
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
     await tester.tap(find.text('편집'));
     await tester.pump();
@@ -134,12 +114,13 @@ void main() {
   });
 
   testWidgets('다중 삭제: Dialog는 바로 닫히고 오버레이 후 일부 실패를 안내한다', (tester) async {
-    final service = FakeRatingApiService(
+    final service = FakeRatingApiService()..failingDeleteIds = {2};
+    await pumpProfile(
+      tester,
+      service,
       ratings: [ratingFixture(1, 13), ratingFixture(2, 14)],
-    )..failingDeleteIds = {2};
-    await pumpProfile(tester, service);
+    );
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
     await tester.tap(find.text('편집'));
     await tester.pump();
@@ -172,43 +153,63 @@ void main() {
     );
   });
 
-  testWidgets('가입 전에는 회원가입 안내를 보여주고 조회하지 않는다', (tester) async {
+  testWidgets('수정 Dialog는 기존 값으로 열리고 저장 응답으로 카드를 갱신한다', (tester) async {
     final service = FakeRatingApiService();
-    await pumpProfile(tester, service, signedIn: false);
-    await openMyRatings(tester);
-    await tester.pumpAndSettle();
-
-    expect(find.text('학습용 회원가입이 필요합니다.'), findsOneWidget);
-    expect(service.requestedMemberIds, isEmpty);
-  });
-
-  testWidgets('수정 Dialog는 기존 값으로 열리고 저장 후 재조회한다', (tester) async {
-    final service = FakeRatingApiService(
+    await pumpProfile(
+      tester,
+      service,
       ratings: [ratingFixture(1, 13, comment: '기존 코멘트')],
     );
-    await pumpProfile(tester, service);
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
-    service.requestedMemberIds.clear();
     await tester.tap(find.text('수정'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, '기존 코멘트'), findsOneWidget);
 
+    await tester.enterText(find.byType(TextField), '수정한 코멘트');
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
 
     expect(service.updates.single.ratingId, 1);
     expect(service.updates.single.score, 4);
-    expect(service.updates.single.comment, '기존 코멘트');
-    expect(service.requestedMemberIds, [1]);
+    expect(service.updates.single.comment, '수정한 코멘트');
+    expect(find.text('수정한 코멘트'), findsOneWidget);
+  });
+
+  testWidgets('403 수정 실패는 Dialog에 안내하고 로그인 상태를 유지한다', (tester) async {
+    final service = FakeRatingApiService()
+      ..writeFailure = apiError(403, 'RATING403_1');
+    await pumpProfile(tester, service, ratings: [ratingFixture(1, 13)]);
+    await openMyRatings(tester);
+
+    await tester.tap(find.text('수정'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('본인이 작성한 평점만 수정하거나 삭제할 수 있어요.'), findsWidgets);
+    expect(currentPath(tester), '/my/ratings');
+  });
+
+  testWidgets('401 삭제 실패는 로그인 화면으로 이동하고 만료 안내를 띄운다', (tester) async {
+    final service = FakeRatingApiService()
+      ..writeFailure = apiError(401, 'AUTH401_4');
+    await pumpProfile(tester, service, ratings: [ratingFixture(1, 13)]);
+    await openMyRatings(tester);
+
+    await tester.tap(find.text('삭제'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('삭제').last);
+    await tester.pumpAndSettle();
+
+    expect(currentPath(tester), '/login');
+    expect(find.text('로그인이 만료됐어요. 다시 로그인해 주세요.'), findsOneWidget);
   });
 
   testWidgets('삭제 취소는 요청하지 않고, 마지막 항목 삭제 후 Empty를 표시한다', (tester) async {
-    final service = FakeRatingApiService(ratings: [ratingFixture(1, 13)]);
-    await pumpProfile(tester, service);
+    final service = FakeRatingApiService();
+    await pumpProfile(tester, service, ratings: [ratingFixture(1, 13)]);
     await openMyRatings(tester);
-    await tester.pumpAndSettle();
 
     await tester.tap(find.text('삭제'));
     await tester.pumpAndSettle();
@@ -222,6 +223,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(service.deletedRatingIds, [1]);
-    expect(find.text('등록된 평점이 없습니다.'), findsOneWidget);
+    expect(find.textContaining('이번 로그인에서 등록한 평점이 없습니다.'), findsOneWidget);
   });
 }

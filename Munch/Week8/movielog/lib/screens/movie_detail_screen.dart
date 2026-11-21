@@ -4,6 +4,7 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/network/api_error.dart';
 import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../theme/app_colors.dart';
@@ -70,7 +71,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           if (viewModel.submitStatus != SubmitStatus.success) {
             final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
             if (mounted) _showSnackBar(message);
-            throw StateError(message);
+            throw ActionFailure(message);
           }
         },
       ),
@@ -108,8 +109,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       bottomNavigationBar: _DetailActionBar(
         isFavorite: _isFavorite,
         onFavoritePressed: _toggleFavorite,
-        onRatePressed: viewModel.memberId == null ? null : _openRatingDialog,
-        onSignUpPressed: () => context.push('/register'),
+        onRatePressed: _openRatingDialog,
       ),
     );
   }
@@ -234,13 +234,11 @@ class _DetailActionBar extends StatelessWidget {
     required this.isFavorite,
     required this.onFavoritePressed,
     required this.onRatePressed,
-    required this.onSignUpPressed,
   });
 
   final bool isFavorite;
   final VoidCallback onFavoritePressed;
-  final VoidCallback? onRatePressed;
-  final VoidCallback onSignUpPressed;
+  final VoidCallback onRatePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -258,24 +256,6 @@ class _DetailActionBar extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (onRatePressed == null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '평점을 남기려면 학습용 회원가입이 필요합니다.',
-                          style: TextStyle(fontSize: 13, color: AppColors.gray),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: onSignUpPressed,
-                        child: const Text('회원가입'),
-                      ),
-                    ],
-                  ),
-                ),
               Row(
                 children: [
                   Expanded(

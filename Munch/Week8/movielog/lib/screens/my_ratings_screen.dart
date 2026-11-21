@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/network/api_error.dart';
 import '../data/models/rating_dto.dart';
 import '../data/models/rating_with_movie.dart';
 import '../theme/app_colors.dart';
@@ -35,13 +36,6 @@ class MyRatingsScreen extends StatelessWidget {
                   MyRatingsLoadStatus.idle ||
                   MyRatingsLoadStatus.loading => const _RatingsLoading(),
                   MyRatingsLoadStatus.empty => const _RatingsEmpty(),
-                  MyRatingsLoadStatus.error => _RatingsError(
-                    message:
-                        viewModel.refreshWarning ??
-                        viewModel.message ??
-                        '평점을 불러오지 못했습니다.',
-                    onRetry: viewModel.load,
-                  ),
                   MyRatingsLoadStatus.success => _RatingsList(
                     viewModel: viewModel,
                   ),
@@ -84,38 +78,12 @@ class _RatingsEmpty extends StatelessWidget {
         children: [
           Icon(Icons.rate_review_outlined, size: 48, color: AppColors.gray),
           SizedBox(height: 12),
-          Text('등록된 평점이 없습니다.', style: AppTextStyles.bodyMedium),
+          Text(
+            '이번 로그인에서 등록한 평점이 없습니다.\n영화 상세에서 평점을 남기면 여기에서 수정·삭제할 수 있어요.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium,
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _RatingsError extends StatelessWidget {
-  const _RatingsError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            MovieLogButton(label: '다시 시도', width: 120, onPressed: onRetry),
-          ],
-        ),
       ),
     );
   }
@@ -372,7 +340,13 @@ class _DeleteRatingDialogState extends State<_DeleteRatingDialog> {
       if (!mounted) return;
       setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.')),
+        SnackBar(
+          content: Text(
+            error is ActionFailure
+                ? error.message
+                : '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
+        ),
       );
     }
   }

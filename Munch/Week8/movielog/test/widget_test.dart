@@ -3,24 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:movielog/movie_log_app.dart';
-import 'package:movielog/router/app_router.dart';
-
 import 'fakes/fake_sign_up_service.dart';
-import 'fakes/fake_tmdb_movie_service.dart';
+import 'fakes/pump_app.dart';
 
 Future<void> pumpSignUpScreen(
   WidgetTester tester, {
   FakeSignUpService? checkService,
 }) async {
-  await tester.pumpWidget(
-    MovieLogApp(
-      movieService: FakeTmdbMovieService(),
-      signUpService: checkService ?? FakeSignUpService(),
-    ),
+  await pumpApp(
+    tester,
+    signUpService: checkService ?? FakeSignUpService(),
+    signedIn: false,
+    location: '/register',
   );
-  AppRouter.router.go('/register');
-  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -86,7 +81,9 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, '가입하기'));
     await tester.pump();
 
-    expect(find.text('회원가입이 완료되었습니다. (memberId: 7)'), findsOneWidget);
+    expect(find.text('회원가입이 완료되었어요. 로그인해 주세요.'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('MovieLog에 로그인'), findsOneWidget);
   });
 
   testWidgets('회원가입 제출 중에는 화면을 벗어날 수 없고 끝나면 해제된다', (WidgetTester tester) async {

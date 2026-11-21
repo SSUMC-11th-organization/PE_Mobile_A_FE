@@ -1,49 +1,102 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../data/models/member_info.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/auth_view_model.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/movielog_button.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+
     return Scaffold(
       appBar: CommonAppBar(
         title: '내 프로필',
         actions: [
-          IconButton(
-            onPressed: () => context.push('/button-preview'),
-            icon: const Icon(Icons.settings, color: AppColors.violet),
+          TextButton(
+            onPressed: auth.storageCleanupInProgress ? null : auth.logout,
+            child: const Text(
+              '로그아웃',
+              style: TextStyle(color: AppColors.violet),
+            ),
           ),
         ],
       ),
-      body: const SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ProfileHeader(),
-              SizedBox(height: 40),
-              ProfileStats(),
-              SizedBox(height: 24),
-              MyRatingsEntry(),
-              SizedBox(height: 32),
-              FavoriteGenres(),
-            ],
-          ),
-        ),
+      body: SafeArea(
+        child: member != null
+            ? SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    ProfileHeader(member: member),
+                    const SizedBox(height: 40),
+                    const ProfileStats(),
+                    const SizedBox(height: 24),
+                    const MyRatingsEntry(),
+                    const SizedBox(height: 32),
+                    const FavoriteGenres(),
+                  ],
+                ),
+              )
+            : auth.memberStatus == MemberLoadStatus.error
+            ? _MemberLoadError(onRetry: () => auth.loadMember(force: true))
+            : const Center(
+                child: CircularProgressIndicator(color: AppColors.violet),
+              ),
       ),
     );
   }
 }
 
+class _MemberLoadError extends StatelessWidget {
+  const _MemberLoadError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('내 정보를 불러오지 못했어요.', style: AppTextStyles.bodyMedium),
+          const SizedBox(height: 16),
+          MovieLogButton(
+            label: '다시 시도',
+            width: 220,
+            height: 44,
+            onPressed: onRetry,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String formatJoinedDate(DateTime createdAt) {
+  final local = createdAt.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year}.$month.$day 가입';
+}
+
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key});
+  const ProfileHeader({super.key, required this.member});
+
+  final MemberInfo member;
 
   @override
   Widget build(BuildContext context) {
@@ -58,17 +111,20 @@ class ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const Text('무비러버', style: AppTextStyles.titleLarge),
-        const SizedBox(height: 12),
-        const Text(
-          '매주 주말엔 영화관으로 출근하는 프로 관람객. 좋은\n영화를 보고 기록하는 것을 좋아합니다.',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.bodyMedium,
+        Text(member.nickname, style: AppTextStyles.titleLarge),
+        const SizedBox(height: 8),
+        Text(
+          formatJoinedDate(member.createdAt),
+          style: const TextStyle(fontSize: 13, color: AppColors.gray),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          member.email,
+          style: const TextStyle(fontSize: 14, color: AppColors.gray),
         ),
         const SizedBox(height: 24),
-
         ElevatedButton(
-          onPressed: () {},
+          onPressed: () => context.push('/my/profile/edit'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.warmWhite,
             foregroundColor: AppColors.violet,

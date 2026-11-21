@@ -2,19 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/movie_log_app.dart';
-import 'package:movielog/router/app_router.dart';
 import 'package:movielog/widgets/movie_card.dart';
 
 import '../fakes/fake_tmdb_movie_service.dart';
+import '../fakes/pump_app.dart';
 
 Future<void> pumpMovieList(
   WidgetTester tester,
   FakeTmdbMovieService service,
 ) async {
-  await tester.pumpWidget(MovieLogApp(movieService: service));
-  AppRouter.router.go('/movies');
-  await tester.pumpAndSettle();
+  await pumpApp(tester, movieService: service, location: '/movies');
 }
 
 ChoiceChip chip(WidgetTester tester, String label) {
