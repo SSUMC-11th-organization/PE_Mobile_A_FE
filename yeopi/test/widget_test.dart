@@ -1,64 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:movielog/main.dart';
-import 'package:movielog/router/app_router.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/movielog_button.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import 'helpers/app_harness.dart';
 import 'helpers/movielog_fakes.dart';
 import 'helpers/tmdb_fakes.dart';
 
 void main() {
-  // 영화 목록이 장르를 로컬에 저장하므로 테스트에서는 메모리 저장소를 씁니다.
-  setUp(() {
-    SharedPreferencesAsyncPlatform.instance =
-        InMemorySharedPreferencesAsync.empty();
-  });
-
-  // AppRouter.router는 static이라 테스트마다 시작 위치를 직접 맞춥니다.
-  Future<FakeTmdbMovieService> pumpAppAt(
-    WidgetTester tester,
-    String location, {
-    Object? extra,
-    int? memberId,
-  }) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-
-    final service = FakeTmdbMovieService();
-    AppRouter.router.go(location, extra: extra);
-    await tester.pumpWidget(
-      MovieLogApp(
-        movieService: service,
-        signUpService: FakeSignUpService(),
-        ratingApiService: FakeRatingApiService(),
-        session: LearningMemberSession(memberId),
-      ),
-    );
-    await tester.pumpAndSettle();
-    return service;
-  }
-
-  // 닉네임·이메일을 입력하고 각각 중복 확인을 눌러 '사용 가능'까지 만듭니다.
-  Future<void> fillValidSignUp(WidgetTester tester) async {
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), '영화광');
-    await tester.enterText(fields.at(1), 'movie@movielog.com');
-    await tester.enterText(fields.at(2), 'Password1!');
-    await tester.pump();
-    await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(0));
-    await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(1));
-    await tester.pumpAndSettle();
-  }
-
   group('회원가입', () {
     Future<void> pumpSignUp(WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
@@ -112,44 +64,53 @@ void main() {
       expect(find.text('올바른 이메일 형식이 아닙니다.'), findsOneWidget);
       expect(find.text('비밀번호는 8자 이상 입력해주세요.'), findsOneWidget);
     });
-  });
 
-  group('화면 전환', () {
-    testWidgets('시작하기 → 회원가입 → 가입 완료 시 영화 목록으로 이동한다', (tester) async {
-      await pumpAppAt(tester, '/start');
+    testWidgets('로그인 화면 → 회원가입 → 가입 완료 시 로그인 화면으로 돌아온다', (tester) async {
+      final app = await pumpMovieLogApp(tester, signedIn: false);
+      expect(app.location, '/login');
 
-      await tester.tap(find.text('시작하기'));
+      await tester.tap(find.widgetWithText(TextButton, '회원가입'));
       await tester.pumpAndSettle();
-      expect(find.text('회원가입'), findsOneWidget);
+      expect(app.location, '/register');
 
-      await fillValidSignUp(tester);
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), '영화광');
+      await tester.enterText(fields.at(1), 'movie@movielog.com');
+      await tester.enterText(fields.at(2), 'Password1!');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(0));
+      await tester.tap(find.widgetWithText(MovieLogButton, '중복 확인').at(1));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
       await tester.tap(find.text('가입하기'));
       await tester.pumpAndSettle();
 
-      expect(AppRouter.router.state.uri.path, '/movies');
-      expect(find.byType(NavigationBar), findsOneWidget);
-      // go로 이동했기 때문에 되돌아갈 화면이 없습니다.
-      expect(AppRouter.router.canPop(), isFalse);
+      // 가입 응답에는 토큰이 없어서 바로 로그인되지 않고 로그인 화면으로 갑니다.
+      expect(app.signUp.signUpRequests.single.nickname, '영화광');
+      expect(app.location, '/login');
+      expect(find.text('회원가입이 완료되었습니다. 로그인해 주세요.'), findsOneWidget);
     });
+  });
 
+  group('화면 전환', () {
     testWidgets('홈은 인기 영화 5개를 보여주고, 카드를 누르면 TMDB id로 상세에 간다', (tester) async {
-      final service = await pumpAppAt(tester, '/home');
-      expect(service.popularRequests, 1);
+      final app = await pumpMovieLogApp(tester);
+      expect(app.location, '/home');
+      expect(app.movies.popularRequests, 1);
 
       await tester.tap(find.text('영화 2'));
       await tester.pumpAndSettle();
 
-      expect(AppRouter.router.state.uri.path, '/movies/2');
+      expect(app.location, '/movies/2');
       expect(find.text('평점 남기기'), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
 
-      expect(AppRouter.router.state.uri.path, '/home');
+      expect(app.location, '/home');
       // 상세에서 돌아와도 홈 ViewModel이 유지되어 Popular를 다시 요청하지 않습니다.
-      expect(service.popularRequests, 1);
+      expect(app.movies.popularRequests, 1);
 
       // 가로 목록은 보이는 카드만 그리므로 끝까지 스크롤해서 5개에서 끝나는지 확인합니다.
       final popularList = find.byWidgetPredicate(
@@ -166,12 +127,12 @@ void main() {
     });
 
     testWidgets('NavigationBar 선택 상태가 현재 탭과 일치한다', (tester) async {
-      await pumpAppAt(tester, '/home');
+      final app = await pumpMovieLogApp(tester);
 
       await tester.tap(find.text('마이'));
       await tester.pumpAndSettle();
 
-      expect(AppRouter.router.state.uri.path, '/my');
+      expect(app.location, '/my');
       expect(
         tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
         2,
@@ -179,7 +140,8 @@ void main() {
     });
 
     testWidgets('없는 영화 주소로 들어오면 불러오기 실패 문구를 보여준다', (tester) async {
-      await pumpAppAt(tester, '/movies/999');
+      final app = await pumpMovieLogApp(tester);
+      await app.push('/movies/999');
 
       // 목록에서 넘긴 영화가 없으면 TMDB 상세를 다시 조회하고, 없으면 오류 문구를 보여줍니다.
       expect(find.text('영화를 불러오지 못했습니다.'), findsOneWidget);
@@ -188,22 +150,23 @@ void main() {
 
   group('영화 목록과 상세', () {
     testWidgets('영화 탭에서 장르를 고르면 with_genres로 다시 요청한다', (tester) async {
-      final service = await pumpAppAt(tester, '/movies');
+      final app = await pumpMovieLogApp(tester);
+      await app.go('/movies');
       expect(find.text('30편 · 인기순'), findsOneWidget);
-      final requestsBefore = service.discoverRequests.length;
+      final requestsBefore = app.movies.discoverRequests.length;
 
       await tester.tap(find.widgetWithText(ChoiceChip, '드라마'));
       await tester.pumpAndSettle();
 
-      final genreRequests = service.discoverRequests.skip(requestsBefore);
+      final genreRequests = app.movies.discoverRequests.skip(requestsBefore);
       expect(genreRequests.first, (page: 1, genreId: 18));
       expect(genreRequests.every((request) => request.genreId == 18), isTrue);
       expect(find.text('22편 · 인기순'), findsOneWidget);
     });
 
     testWidgets('줄거리와 포스터가 없으면 안내 문구와 placeholder를 보여준다', (tester) async {
-      await pumpAppAt(
-        tester,
+      final app = await pumpMovieLogApp(tester);
+      await app.push(
         '/movies/7',
         extra: movieFixture(7, overview: '', posterPath: null),
       );
@@ -212,8 +175,11 @@ void main() {
       expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
     });
 
-    testWidgets('평점 Dialog는 별점을 골라야 저장되고 Snackbar로 안내한다', (tester) async {
-      await pumpAppAt(tester, '/movies/1', extra: movieFixture(1), memberId: 7);
+    testWidgets('평점 Dialog는 별점을 골라야 저장되고, 토큰 기반으로 등록한 뒤 Snackbar로 안내한다', (
+      tester,
+    ) async {
+      final app = await pumpMovieLogApp(tester);
+      await app.push('/movies/1', extra: movieFixture(1));
 
       await tester.tap(find.text('평점 남기기'));
       await tester.pumpAndSettle();
@@ -237,23 +203,17 @@ void main() {
 
       expect(find.byType(Dialog), findsNothing);
       expect(find.textContaining('평점을 등록했습니다.'), findsOneWidget);
-    });
-
-    testWidgets('memberId가 없으면 평점 버튼이 비활성화되고 가입 안내를 보여준다', (tester) async {
-      await pumpAppAt(tester, '/movies/1', extra: movieFixture(1));
-
-      final button = tester.widget<ButtonStyleButton>(
-        find.ancestor(
-          of: find.text('평점 남기기'),
-          matching: find.bySubtype<ButtonStyleButton>(),
-        ),
-      );
-      expect(button.onPressed, isNull);
-      expect(find.text('평점을 남기려면 먼저 학습용 회원가입을 완료해 주세요.'), findsOneWidget);
+      // 등록 body에는 memberId가 없고, 응답 Rating이 이번 세션 목록에 들어갑니다.
+      expect(app.ratings.createRequests.single.toJson(), {
+        'movieId': 1,
+        'score': 5,
+      });
+      expect(app.store.ratings.single.movieId, 1);
     });
 
     testWidgets('즐겨찾기를 누를 때마다 추가·삭제 Snackbar가 나온다', (tester) async {
-      await pumpAppAt(tester, '/movies/1', extra: movieFixture(1));
+      final app = await pumpMovieLogApp(tester);
+      await app.push('/movies/1', extra: movieFixture(1));
 
       await tester.tap(find.byTooltip('즐겨찾기 추가'));
       await tester.pump();

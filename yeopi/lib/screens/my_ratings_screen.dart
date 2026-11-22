@@ -102,18 +102,12 @@ class MyRatingsScreen extends StatelessWidget {
           body: switch (viewModel.status) {
             MyRatingsLoadStatus.idle || MyRatingsLoadStatus.loading =>
               const Center(child: CircularProgressIndicator()),
-            // 쓰기는 성공했는데 재조회만 실패했다면 저장 실패처럼 보이지 않도록 별도 문구를 씁니다.
-            MyRatingsLoadStatus.error => _MyRatingsError(
-              message:
-                  viewModel.refreshWarning ??
-                  viewModel.message ??
-                  '평점을 불러오지 못했습니다.',
-              onRetry: viewModel.load,
-            ),
             MyRatingsLoadStatus.empty => const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: MovieListEmpty(message: '아직 등록한 평점이 없어요.'),
+                child: MovieListEmpty(
+                  message: '이번 로그인에서 등록한 평점이 없어요.\n영화 상세에서 평점을 남겨 보세요.',
+                ),
               ),
             ),
             MyRatingsLoadStatus.success => _RatingList(
@@ -134,7 +128,7 @@ class _RatingList extends StatelessWidget {
   final ValueChanged<String> onMessage;
 
   String _titleOf(RatingWithMovie entry) =>
-      entry.movie?.title ?? 'movieId ${entry.rating.movieId}';
+      entry.movie?.title ?? '영화 #${entry.rating.movieId}';
 
   Future<void> _openEditDialog(
     BuildContext context,
@@ -189,10 +183,14 @@ class _RatingList extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 로그인 기능이 없으므로 회원가입으로 받은 학습용 memberId 기준이라고 안내합니다.
               Text(
-                '학습용 회원(memberId ${viewModel.memberId})의 평점 ${entries.length}개',
+                '이번 로그인에서 등록한 평점 ${entries.length}개',
                 style: AppTextStyles.bodySmall,
+              ),
+              // v7에는 토큰 기반 '내 평점 목록' API가 없어서 재시작 후에는 복원되지 않는다는 한계를 알립니다.
+              Text(
+                '앱을 다시 시작하거나 로그아웃하면 이 목록은 비워져요.',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.gray),
               ),
               if (notice != null) ...[
                 const SizedBox(height: 4),
@@ -278,7 +276,8 @@ class _RatingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    movie?.title ?? '영화 정보를 불러오지 못했어요',
+                    // TMDB에 없거나 못 불러온 영화도 평점은 지우지 않고 '영화 #movieId'로 보여줍니다.
+                    movie?.title ?? '영화 #${rating.movieId}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.bodyMedium.copyWith(
@@ -286,12 +285,6 @@ class _RatingCard extends StatelessWidget {
                       color: movie == null ? AppColors.gray : null,
                     ),
                   ),
-                  // 영화 정보가 없어도 어떤 영화의 평점인지 알 수 있도록 movieId를 남깁니다.
-                  if (movie == null)
-                    Text(
-                      'movieId ${rating.movieId}',
-                      style: AppTextStyles.bodySmall,
-                    ),
                   const SizedBox(height: 6),
                   RatingBarIndicator(
                     rating: rating.score.toDouble(),
@@ -327,37 +320,6 @@ class _RatingCard extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MyRatingsError extends StatelessWidget {
-  const _MyRatingsError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            // 고정 너비 예시: 문구 길이와 관계없이 항상 120으로 그립니다.
-            MovieLogButton(label: '다시 시도', width: 120, onPressed: onRetry),
           ],
         ),
       ),

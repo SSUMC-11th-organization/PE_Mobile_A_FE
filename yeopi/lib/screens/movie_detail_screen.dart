@@ -115,7 +115,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             Text(movie.overview, style: AppTextStyles.bodyMedium),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            // 학습용 회원가입으로 받은 memberId가 없으면 등록할 수 없습니다.
+            // 만료 처리 중에는 누를 수 없게 합니다.
             onPressed: viewModel.canRate ? _openRatingDialog : null,
             icon: const Icon(Icons.star_outline),
             label: const Text('평점 남기기'),
@@ -125,18 +125,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               foregroundColor: AppColors.white,
             ),
           ),
-          if (!viewModel.canRate) ...[
-            const SizedBox(height: 8),
-            Text(
-              '평점을 남기려면 먼저 학습용 회원가입을 완료해 주세요.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodySmall,
-            ),
-            TextButton(
-              onPressed: () => context.push('/register'),
-              child: const Text('회원가입하러 가기'),
-            ),
-          ],
         ],
       ),
     );

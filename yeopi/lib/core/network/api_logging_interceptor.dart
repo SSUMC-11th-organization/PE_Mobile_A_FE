@@ -29,7 +29,11 @@ class ApiLoggingInterceptor extends Interceptor {
       '[$tag 응답] ${response.statusCode} ${response.requestOptions.uri}',
     );
     // 페이지 응답 전체를 찍으면 콘솔이 밀리므로 응답 모양을 볼 수 있는 앞부분만 남깁니다.
-    final body = '${response.data}';
+    // 로그인 응답의 accessToken이 콘솔에 남지 않도록 값을 가립니다.
+    final body = '${response.data}'.replaceAll(
+      RegExp(r'accessToken: [^,}\s]+'),
+      'accessToken: ***',
+    );
     debugPrint(
       '[$tag 응답 Body] ${body.length > _maxBodyLength ? '${body.substring(0, _maxBodyLength)}…(생략)' : body}',
     );

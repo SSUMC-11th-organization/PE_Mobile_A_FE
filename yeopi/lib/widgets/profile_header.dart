@@ -4,8 +4,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
+// 닉네임과 그 아래 한 줄 안내(가입일 등)는 GET me 결과를 받아서 보여줍니다.
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key});
+  const ProfileHeader({super.key, required this.nickname, this.caption});
+
+  final String nickname;
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +25,14 @@ class ProfileHeader extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('무비러버', style: AppTextStyles.titleLarge),
+            Flexible(
+              child: Text(
+                nickname,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleLarge,
+              ),
+            ),
             const SizedBox(width: 6),
             SvgPicture.asset(
               'assets/icons/movie.svg',
@@ -35,11 +46,13 @@ class ProfileHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          '좋아하는 영화를 기록하고 있어요',
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.gray),
-        ),
+        if (caption != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            caption!,
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.gray),
+          ),
+        ],
       ],
     );
   }

@@ -1,15 +1,20 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:movielog/core/storage/token_storage.dart';
 import 'package:movielog/data/models/common_response.dart';
 import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/data/models/login_models.dart';
+import 'package:movielog/data/models/member_info.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/rating_request.dart';
 import 'package:movielog/data/models/sign_up_models.dart';
+import 'package:movielog/data/services/auth_api_service.dart';
+import 'package:movielog/data/services/member_api_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/sign_up_service.dart';
 
-// message를 넘기면 v6 공통 오류 형식(CommonResponse) body를 함께 담습니다.
+// message나 code를 넘기면 공통 오류 형식(CommonResponse) body를 함께 담습니다.
 DioException httpError(
   String path,
   int statusCode, {
@@ -17,19 +22,20 @@ DioException httpError(
   String? code,
 }) {
   final options = RequestOptions(path: path);
+  final hasBody = message != null || code != null;
   return DioException(
     requestOptions: options,
     response: Response(
       requestOptions: options,
       statusCode: statusCode,
-      data: message == null
-          ? null
-          : {
+      data: hasBody
+          ? {
               'isSuccess': false,
               'code': code ?? 'COMMON$statusCode',
-              'message': message,
+              'message': message ?? '오류',
               'result': null,
-            },
+            }
+          : null,
     ),
     type: DioExceptionType.badResponse,
   );
@@ -39,6 +45,12 @@ DioException networkError(String path) => DioException(
   requestOptions: RequestOptions(path: path),
   type: DioExceptionType.connectionError,
 );
+
+DioException expiredError([String code = 'AUTH401_4']) =>
+    httpError('/v7/members/me', 401, code: code, message: '토큰이 만료되었습니다.');
+
+// 테스트용 토큰 값입니다. 실제 JWT가 아닙니다.
+const fakeAccessToken = 'test-access-token';
 
 // takenNicknames·takenEmails에 있는 값만 '중복'으로 응답하는 테스트용 Service입니다.
 class FakeSignUpService implements SignUpService {
@@ -104,6 +116,110 @@ class FakeSignUpService implements SignUpService {
   }
 }
 
+// 기기 보안 저장소 대신 메모리에 토큰을 둡니다.
+class FakeTokenStorage implements TokenStorage {
+  FakeTokenStorage([this.token]);
+
+  String? token;
+  Object? readError;
+  Object? deleteError;
+  int deleteCount = 0;
+
+  @override
+  Future<void> saveAccessToken(String token) async => this.token = token;
+
+  @override
+  Future<String?> readAccessToken() async {
+    final failure = readError;
+    if (failure != null) throw failure;
+    return token;
+  }
+
+  @override
+  Future<void> deleteAccessToken() async {
+    deleteCount++;
+    final failure = deleteError;
+    if (failure != null) throw failure;
+    token = null;
+  }
+}
+
+// 정해 둔 이메일·비밀번호만 성공시키고, 나머지는 서버처럼 AUTH401_1을 돌려줍니다.
+class FakeAuthApiService implements AuthApiService {
+  FakeAuthApiService({
+    this.email = 'me@movielog.com',
+    this.password = 'Password1!',
+  });
+
+  final String email;
+  final String password;
+  Object? error;
+  Completer<void>? gate;
+  final requests = <String>[]; // 이메일만 기록합니다. 비밀번호는 남기지 않습니다.
+
+  @override
+  Future<LoginResult> login(LoginRequest request) async {
+    requests.add(request.email.trim());
+    final pending = gate;
+    if (pending != null) await pending.future;
+    final failure = error;
+    if (failure != null) throw failure;
+    if (request.email.trim() != email || request.password != password) {
+      throw httpError(
+        '/v7/auth/login',
+        401,
+        code: 'AUTH401_1',
+        message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+      );
+    }
+    return const LoginResult(nickname: '여비', accessToken: fakeAccessToken);
+  }
+}
+
+MemberInfo memberFixture({String nickname = '여비'}) => MemberInfo(
+  email: 'me@movielog.com',
+  nickname: nickname,
+  createdAt: DateTime.utc(2026, 10, 10, 3),
+);
+
+class FakeMemberApiService implements MemberApiService {
+  FakeMemberApiService({MemberInfo? member})
+    : member = member ?? memberFixture();
+
+  MemberInfo member;
+  Object? fetchError;
+  Object? updateError;
+  Completer<void>? fetchGate;
+  Completer<void>? updateGate;
+  int fetchCount = 0;
+  final updateRequests = <String>[];
+
+  @override
+  Future<MemberInfo> fetchMe() async {
+    fetchCount++;
+    final pending = fetchGate;
+    if (pending != null) await pending.future;
+    final failure = fetchError;
+    if (failure != null) throw failure;
+    return member;
+  }
+
+  @override
+  Future<MemberInfo> updateNickname(String nickname) async {
+    updateRequests.add(nickname);
+    final pending = updateGate;
+    if (pending != null) await pending.future;
+    final failure = updateError;
+    if (failure != null) throw failure;
+    member = MemberInfo(
+      email: member.email,
+      nickname: nickname,
+      createdAt: member.createdAt,
+    );
+    return member;
+  }
+}
+
 RatingDto ratingFixture(
   int ratingId, {
   required int movieId,
@@ -119,41 +235,19 @@ RatingDto ratingFixture(
   );
 }
 
-// 두 번째 평점은 후기(comment)가 없습니다.
-List<RatingDto> defaultRatingFixtures() => [
-  ratingFixture(1, movieId: 1, score: 5, comment: '최고의 영화!'),
-  ratingFixture(2, movieId: 2, score: 3, comment: null),
-];
-
+// v7 평점 API Fake입니다. 등록하면 새 ratingId를 붙인 Rating 객체를 돌려줍니다.
 class FakeRatingApiService implements RatingApiService {
-  FakeRatingApiService({List<RatingDto>? ratings})
-    : ratings = ratings ?? defaultRatingFixtures();
-
-  List<RatingDto> ratings;
-  Object? error;
-  Completer<void>? gate;
-  final requestedMemberIds = <int>[];
-
-  @override
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    requestedMemberIds.add(memberId);
-    final pending = gate;
-    if (pending != null) await pending.future;
-    final failure = error;
-    if (failure != null) throw failure;
-    return ratings;
-  }
-
-  // 쓰기 요청 기록과 실패 주입입니다. 성공하면 메모리 목록도 함께 바꿉니다.
+  int _nextId = 100;
+  // 수정 응답의 movieId를 맞추기 위해 평점별 영화를 기억합니다.
+  final movieIdsByRating = <int, int>{};
   final createRequests = <CreateRatingRequest>[];
   final updateRequests = <(int, int, String?)>[];
   final deleteRequests = <int>[];
+  final requestedMemberIds = <int>[];
   Object? writeError;
   // 다중 삭제의 부분 실패를 만들 때 ratingId별로 실패시킵니다.
   final failingDeleteIds = <int>{};
   Completer<void>? writeGate;
-  // 쓰기 성공 뒤 재조회(GET)만 실패시키고 싶을 때 씁니다.
-  Object? errorAfterWrite;
 
   Future<void> _write() async {
     final pending = writeGate;
@@ -162,54 +256,48 @@ class FakeRatingApiService implements RatingApiService {
     if (failure != null) throw failure;
   }
 
-  void _afterWrite() {
-    if (errorAfterWrite != null) error = errorAfterWrite;
+  @override
+  Future<List<RatingDto>> fetchMemberRatings(int memberId) async {
+    requestedMemberIds.add(memberId);
+    return const [];
   }
 
   @override
-  Future<void> createRating({
-    required int memberId,
-    required CreateRatingRequest request,
-  }) async {
-    requestedMemberIds.add(memberId);
+  Future<RatingDto> createRating(CreateRatingRequest request) async {
     createRequests.add(request);
     await _write();
+    final id = _nextId++;
+    movieIdsByRating[id] = request.movieId;
+    return ratingFixture(
+      id,
+      movieId: request.movieId,
+      score: request.score,
+      comment: request.comment,
+    );
   }
 
   @override
-  Future<void> updateRating({
-    required int memberId,
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     required String? comment,
   }) async {
     updateRequests.add((ratingId, score, comment));
     await _write();
-    ratings = [
-      for (final rating in ratings)
-        rating.ratingId == ratingId
-            ? ratingFixture(
-                ratingId,
-                movieId: rating.movieId,
-                score: score,
-                comment: comment,
-              )
-            : rating,
-    ];
-    _afterWrite();
+    return ratingFixture(
+      ratingId,
+      movieId: movieIdsByRating[ratingId] ?? 1,
+      score: score,
+      comment: comment,
+    );
   }
 
   @override
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
+  Future<void> deleteRating(int ratingId) async {
     deleteRequests.add(ratingId);
     await _write();
     if (failingDeleteIds.contains(ratingId)) {
-      throw httpError('/v6/members/$memberId/ratings/$ratingId', 500);
+      throw httpError('/v7/ratings/$ratingId', 500);
     }
-    ratings = ratings.where((rating) => rating.ratingId != ratingId).toList();
-    _afterWrite();
   }
 }
