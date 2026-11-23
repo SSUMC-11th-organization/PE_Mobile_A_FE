@@ -63,13 +63,47 @@ class MovieListScreen extends StatelessWidget {
   }
 }
 
-class _MovieListBody extends StatelessWidget {
+class _MovieListBody extends StatefulWidget {
   const _MovieListBody({required this.vm});
 
   final PagedMoviesViewModel vm;
 
   @override
+  State<_MovieListBody> createState() => _MovieListBodyState();
+}
+
+class _MovieListBodyState extends State<_MovieListBody> {
+  static const loadMoreThreshold = 400.0;
+
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  // 실패한 뒤에는 자동으로 다시 요청하지 않고 재시도 버튼을 누르게 한다.
+  void _onScroll() {
+    final vm = widget.vm;
+    if (vm.loadMoreError != null) return;
+    if (_scrollController.position.extentAfter <= loadMoreThreshold) {
+      vm.loadNextPage();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final vm = widget.vm;
+
     return switch (vm.phase) {
       LoadPhase.idle ||
       LoadPhase.loading => const MovieListLoading(showGenreSkeleton: false),
@@ -88,9 +122,10 @@ class _MovieListBody extends StatelessWidget {
             !vm.isLoadingMore && notification.depth == 0,
         onRefresh: vm.reload,
         child: MovieGrid(
+          controller: _scrollController,
           movies: vm.movies,
           genreNames: vm.genreNames,
-          footer: MoviePageFooter(vm: vm),
+          footer: MoviePageFooter(vm: vm, autoLoad: true),
           onMovieTap: (movie) => context.push(
             AppRouter.movieDetailLocation(movie.id),
             extra: movie,

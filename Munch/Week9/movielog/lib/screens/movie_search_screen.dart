@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -23,7 +25,10 @@ class MovieSearchScreen extends StatefulWidget {
 }
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
+  static const debounceDuration = Duration(milliseconds: 500);
+
   final _text = TextEditingController();
+  Timer? _debounce;
   String? _inputError;
 
   @override
@@ -36,12 +41,27 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _text.dispose();
     super.dispose();
   }
 
-  // 글자마다 요청하지 않고 제출할 때만 page 1부터 검색한다.
+  // 입력이 500ms 멈추면 마지막 값으로 한 번만 검색한다.
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(debounceDuration, () {
+      if (!mounted) return;
+      final query = value.trim();
+      if (query.isEmpty) return;
+      final vm = context.read<PagedMoviesViewModel>();
+      if (query == vm.query && vm.phase != LoadPhase.error) return;
+      if (_inputError != null) setState(() => _inputError = null);
+      vm.loadInitial(query: query);
+    });
+  }
+
   void _submit(String value) {
+    _debounce?.cancel();
     final query = value.trim();
     if (query.isEmpty) {
       setState(() => _inputError = '검색어를 입력해 주세요.');
@@ -68,6 +88,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
               child: TextField(
                 controller: _text,
                 textInputAction: TextInputAction.search,
+                onChanged: _onChanged,
                 onSubmitted: _submit,
                 decoration: InputDecoration(
                   hintText: '영화 제목을 입력하세요',

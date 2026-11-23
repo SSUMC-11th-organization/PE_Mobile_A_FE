@@ -12,12 +12,15 @@ class RatingDialog extends StatefulWidget {
     super.key,
     this.initialScore = 0,
     this.initialComment,
+    this.showAddToFavorite = false,
     required this.onSubmit,
   });
 
   final int initialScore;
   final String? initialComment;
-  final Future<void> Function(int score, String? comment) onSubmit;
+  final bool showAddToFavorite;
+  final Future<void> Function(int score, String? comment, bool addToFavorites)
+  onSubmit;
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
@@ -29,6 +32,7 @@ class _RatingDialogState extends State<RatingDialog> {
     text: widget.initialComment ?? '',
   );
   bool _isSubmitting = false;
+  bool _addToFavorites = false;
   String? _errorText;
 
   @override
@@ -52,9 +56,16 @@ class _RatingDialogState extends State<RatingDialog> {
       return;
     }
     try {
-      await widget.onSubmit(_score, trimmed.isEmpty ? null : trimmed);
+      await widget.onSubmit(
+        _score,
+        trimmed.isEmpty ? null : trimmed,
+        widget.showAddToFavorite && _addToFavorites,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
+    } on DismissFailure {
+      if (!mounted) return;
+      Navigator.pop(context, false);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -130,6 +141,22 @@ class _RatingDialogState extends State<RatingDialog> {
                   ),
                 ),
               ),
+              if (widget.showAddToFavorite)
+                CheckboxListTile(
+                  value: _addToFavorites,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) =>
+                            setState(() => _addToFavorites = value ?? false),
+                  title: const Text(
+                    '즐겨찾기에도 추가',
+                    style: TextStyle(fontSize: 15, color: AppColors.black),
+                  ),
+                  activeColor: AppColors.violet,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
               if (_errorText != null) ...[
                 const SizedBox(height: 8),
                 Text(

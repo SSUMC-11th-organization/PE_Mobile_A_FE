@@ -12,6 +12,7 @@ import 'core/storage/token_storage.dart';
 import 'data/services/auth_api_service.dart';
 import 'data/services/favorite_api_service.dart';
 import 'data/services/member_api_service.dart';
+import 'data/services/movie_record_api_service.dart';
 import 'data/services/rating_api_service.dart';
 import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
@@ -27,6 +28,7 @@ class MovieLogApp extends StatefulWidget {
     this.signUpService,
     this.ratingApiService,
     this.favoriteApiService,
+    this.movieRecordApiService,
     this.authApiService,
     this.memberApiService,
     this.tokenStorage,
@@ -38,6 +40,7 @@ class MovieLogApp extends StatefulWidget {
   final SignUpService? signUpService;
   final RatingApiService? ratingApiService;
   final FavoriteApiService? favoriteApiService;
+  final MovieRecordApiService? movieRecordApiService;
   final AuthApiService? authApiService;
   final MemberApiService? memberApiService;
   final TokenStorage? tokenStorage;
@@ -85,6 +88,11 @@ class _MovieLogAppState extends State<MovieLogApp> {
         Provider<FavoriteApiService>(
           create: (_) =>
               widget.favoriteApiService ?? FavoriteApiService(_authClient),
+        ),
+        Provider<MovieRecordApiService>(
+          create: (_) =>
+              widget.movieRecordApiService ??
+              MovieRecordApiService(_authClient),
         ),
         ChangeNotifierProvider<SessionRatingStore>(
           create: (_) => widget.sessionRatingStore ?? SessionRatingStore(),

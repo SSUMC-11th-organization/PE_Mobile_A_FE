@@ -10,6 +10,7 @@ class MovieGrid extends StatelessWidget {
     required this.onMovieTap,
     this.genreNames = const {},
     this.footer,
+    this.controller,
   });
 
   static const padding = EdgeInsets.fromLTRB(24, 8, 24, 24);
@@ -24,12 +25,14 @@ class MovieGrid extends StatelessWidget {
   final ValueChanged<TmdbMovieDto> onMovieTap;
   final Map<int, String> genreNames;
   final Widget? footer;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
     final footer = this.footer;
 
     return CustomScrollView(
+      controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverPadding(

@@ -298,7 +298,7 @@ Future<void> onEditPressed(BuildContext context, RatingDto rating) async {
     builder: (_) => RatingDialog(
       initialScore: rating.score,
       initialComment: rating.comment,
-      onSubmit: (score, comment) => viewModel.updateRating(
+      onSubmit: (score, comment, _) => viewModel.updateRating(
         ratingId: rating.ratingId,
         score: score,
         comment: comment,

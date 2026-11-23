@@ -6,7 +6,7 @@ import 'package:movielog/widgets/rating_dialog.dart';
 Future<void> pumpDialog(
   WidgetTester tester, {
   int initialScore = 0,
-  required Future<void> Function(int, String?) onSubmit,
+  required Future<void> Function(int, String?, bool) onSubmit,
   void Function(bool?)? onClosed,
 }) async {
   await tester.pumpWidget(
@@ -36,7 +36,7 @@ ElevatedButton confirmButton(WidgetTester tester) =>
 
 void main() {
   testWidgets('별점을 선택해야 확인이 활성화된다', (tester) async {
-    await pumpDialog(tester, onSubmit: (_, _) async {});
+    await pumpDialog(tester, onSubmit: (_, _, _) async {});
     await tester.enterText(find.byType(TextField), '코멘트만 입력');
     await tester.pump();
     expect(confirmButton(tester).onPressed, isNull);
@@ -55,7 +55,7 @@ void main() {
     await pumpDialog(
       tester,
       initialScore: 3,
-      onSubmit: (_, _) async => calls++,
+      onSubmit: (_, _, _) async => calls++,
       onClosed: (value) => closed = value,
     );
 
@@ -70,7 +70,7 @@ void main() {
     await pumpDialog(
       tester,
       initialScore: 3,
-      onSubmit: (_, _) async => throw StateError('이미 이 영화에 평점을 남기셨습니다.'),
+      onSubmit: (_, _, _) async => throw StateError('이미 이 영화에 평점을 남기셨습니다.'),
     );
     await tester.enterText(find.byType(TextField), '유지될 코멘트');
 
@@ -88,7 +88,7 @@ void main() {
     await pumpDialog(
       tester,
       initialScore: 5,
-      onSubmit: (_, comment) async => received = comment,
+      onSubmit: (_, comment, _) async => received = comment,
       onClosed: (value) => closed = value,
     );
     await tester.enterText(find.byType(TextField), '   ');

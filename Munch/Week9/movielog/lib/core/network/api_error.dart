@@ -27,3 +27,13 @@ class ActionFailure implements Exception {
   @override
   String toString() => message;
 }
+
+// Dialog를 닫고 Snackbar로 안내해야 하는 실패
+class DismissFailure implements Exception {
+  const DismissFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}

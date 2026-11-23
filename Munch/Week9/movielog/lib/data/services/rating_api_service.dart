@@ -69,6 +69,7 @@ String ratingErrorMessage(DioException error) {
     'RATING404_1' => '이미 삭제된 평점이에요.',
     'RATING409_1' => '이미 이 영화에 평점을 남겼어요. 내가 등록한 평점에서 확인해 주세요.',
     'MEMBER404_1' => '회원 정보를 찾을 수 없어요.',
+    'FAVORITE409_1' => '이미 즐겨찾기한 영화예요.',
     'COMMON400' => apiErrorMessage(error) ?? '입력값을 다시 확인해 주세요.',
     _ => '요청에 실패했어요. 잠시 후 다시 시도해 주세요.',
   };

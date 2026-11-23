@@ -11,7 +11,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
-import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/movie_card.dart';
@@ -61,23 +60,36 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   Future<void> _openRatingDialog() async {
     final viewModel = context.read<MovieDetailViewModel>();
+    final favorite = context.read<FavoriteDetailViewModel>();
+    final notFavoriteYet = favorite.hasLoadedStatus && !favorite.isFavorite;
+    String? dismissMessage;
+
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => RatingDialog(
-        onSubmit: (score, comment) async {
-          await viewModel.createRating(score: score, comment: comment);
-          if (viewModel.submitStatus != SubmitStatus.success) {
-            final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
-            if (mounted) _showSnackBar(message);
-            throw ActionFailure(message);
+        showAddToFavorite: notFavoriteYet,
+        onSubmit: (score, comment, addToFavorites) async {
+          try {
+            await viewModel.saveRating(
+              score: score,
+              comment: comment,
+              useMovieRecord: notFavoriteYet,
+              addToFavorites: addToFavorites,
+            );
+          } on DismissFailure catch (failure) {
+            dismissMessage = failure.message;
+            rethrow;
           }
         },
       ),
     );
 
-    if (!mounted || saved != true) return;
-    _showSnackBar('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.');
+    if (!mounted) return;
+    final message = saved == true ? '평점을 저장했습니다.' : dismissMessage;
+    if (message == null) return;
+    _showSnackBar(message);
+    if (!favorite.isDisposed) await favorite.load();
   }
 
   @override

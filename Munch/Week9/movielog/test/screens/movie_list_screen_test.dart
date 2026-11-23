@@ -87,19 +87,24 @@ void main() {
     expect(service.discoverCalls.single, isDiscoverCall(1, [878]));
   });
 
-  testWidgets('더 보기는 다음 page를 붙이고, 실패하면 같은 page를 다시 요청한다', (tester) async {
+  testWidgets('목록 끝 근처까지 스크롤하면 다음 page를 자동으로 불러오고, 실패하면 같은 page를 재시도한다', (
+    tester,
+  ) async {
     final service = FakeTmdbMovieService();
     await pumpMovieList(tester, service);
     final grid = find.byType(Scrollable).last;
 
-    service.discoverCalls.clear();
-    service.failDiscover = true;
-    await tester.scrollUntilVisible(find.text('더 보기'), 600, scrollable: grid);
-    await tester.tap(find.text('더 보기'));
+    expect(find.text('더 보기'), findsNothing);
+    service
+      ..discoverCalls.clear()
+      ..failDiscover = true;
+    await tester.drag(grid, const Offset(0, -6000));
+    await tester.pumpAndSettle();
+    await tester.drag(grid, const Offset(0, -6000));
     await tester.pumpAndSettle();
 
+    expect(service.discoverCalls.map((call) => call.page), [2]);
     expect(find.text('추가 영화 조회에 실패했습니다.'), findsOneWidget);
-    expect(find.text('다음 페이지 다시 시도'), findsOneWidget);
 
     service.failDiscover = false;
     await tester.tap(find.text('다음 페이지 다시 시도'));
@@ -109,24 +114,38 @@ void main() {
     expect(find.text('추가 영화 조회에 실패했습니다.'), findsNothing);
   });
 
-  testWidgets('마지막 page를 불러오면 더 보기 대신 끝 안내를 보여 준다', (tester) async {
+  testWidgets('다음 page 요청 중에는 하단에 로딩을 보여 준다', (tester) async {
+    final service = FakeTmdbMovieService();
+    await pumpMovieList(tester, service);
+
+    service.discoverGate = Completer<void>();
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -6000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    service.discoverGate!.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('마지막 page까지 불러오면 끝 안내를 보여 준다', (tester) async {
     final service = FakeTmdbMovieService()
-      ..discover = (page, genreIds) =>
-          pageFixture(page, [page * 10 + 1, page * 10 + 2], totalPages: 2);
+      ..discover = (page, genreIds) => pageFixture(
+        page,
+        List.generate(6, (i) => page * 10 + i),
+        totalPages: 2,
+      );
     await pumpMovieList(tester, service);
     final grid = find.byType(Scrollable).last;
 
-    await tester.scrollUntilVisible(find.text('더 보기'), 600, scrollable: grid);
-    await tester.tap(find.text('더 보기'));
+    await tester.drag(grid, const Offset(0, -6000));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('모든 영화를 확인했습니다.'),
-      600,
-      scrollable: grid,
-    );
+    await tester.drag(grid, const Offset(0, -6000));
+    await tester.pumpAndSettle();
 
-    expect(find.text('더 보기'), findsNothing);
-    expect(find.text('영화 22'), findsOneWidget);
+    expect(find.text('모든 영화를 확인했습니다.'), findsOneWidget);
+    expect(service.discoverCalls.map((call) => call.page).toList(), [1, 2]);
   });
 
   testWidgets('검색 아이콘을 누르면 하단 탭 없이 검색 화면이 열린다', (tester) async {
