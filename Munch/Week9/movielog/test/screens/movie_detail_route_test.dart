@@ -7,7 +7,7 @@ import '../fakes/fake_tmdb_movie_service.dart';
 import '../fakes/pump_app.dart';
 
 void main() {
-  testWidgets('/movies 자식 상세는 하단 탭과 함께 열리고 뒤로가면 이전 화면으로 돌아온다', (tester) async {
+  testWidgets('영화 상세는 하단 탭 없이 열리고 뒤로가면 이전 화면으로 돌아온다', (tester) async {
     await pumpApp(tester, location: '/home');
 
     routerOf(tester).push(
@@ -17,7 +17,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('평점 남기기'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
 
     await tester.tap(find.byIcon(Icons.arrow_back));
     await tester.pumpAndSettle();

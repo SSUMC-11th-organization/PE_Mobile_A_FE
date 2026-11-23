@@ -1,13 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../data/models/tmdb_movie_dto.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
-import '../view_models/movie_list_view_model.dart';
+import '../view_models/load_phase.dart';
+import '../view_models/paged_movies_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/genre_chip_bar.dart';
 import '../widgets/genre_filter_sheet.dart';
@@ -15,7 +13,7 @@ import '../widgets/movie_grid.dart';
 import '../widgets/movie_list_empty.dart';
 import '../widgets/movie_list_error.dart';
 import '../widgets/movie_list_loading.dart';
-import '../widgets/movie_load_retry_dialog.dart';
+import '../widgets/movie_page_footer.dart';
 
 class MovieListScreen extends StatelessWidget {
   const MovieListScreen({super.key});
@@ -26,38 +24,37 @@ class MovieListScreen extends StatelessWidget {
       appBar: CommonAppBar(
         title: '영화',
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
+          IconButton(
+            tooltip: '영화 검색',
+            onPressed: () => context.push(AppRouter.movieSearchLocation),
+            icon: const Icon(Icons.search),
+          ),
           const _GenreFilterButton(),
         ],
       ),
-      body: Consumer<MovieListViewModel>(
-        builder: (context, viewModel, child) {
-          if (viewModel.genres.isEmpty) {
-            return switch (viewModel.status) {
-              MovieListLoadStatus.error => MovieListError(
-                message: viewModel.message ?? MovieListError.defaultMessage,
-                onRetry: () => context.read<MovieListViewModel>().loadInitial(),
-              ),
-              _ => const MovieListLoading(),
-            };
+      body: Consumer<PagedMoviesViewModel>(
+        builder: (context, vm, child) {
+          if (vm.genres.isEmpty) {
+            return vm.genresFailed
+                ? MovieListError(
+                    onRetry: () {
+                      vm.loadGenres();
+                      if (vm.phase != LoadPhase.ready) vm.reload();
+                    },
+                  )
+                : const MovieListLoading();
           }
 
           return Column(
             children: [
               GenreChipBar(
-                genres: viewModel.genres,
-                selectedGenreIds: viewModel.selectedGenreIds ?? const [],
-                enabled: !viewModel.isBusy,
-                onAllSelected: () => _selectGenres(context, null),
-                onGenreSelected: (id) => _selectGenres(context, [id]),
+                genres: vm.genres,
+                selectedGenreIds: vm.selectedGenreIds ?? const [],
+                enabled: !vm.isBusy,
+                onAllSelected: () => vm.loadInitial(),
+                onGenreSelected: (id) => vm.loadInitial(genreIds: [id]),
               ),
-              if (viewModel.isRefreshing)
-                const LinearProgressIndicator(
-                  minHeight: 2,
-                  color: AppColors.violet,
-                  backgroundColor: Colors.transparent,
-                ),
-              Expanded(child: _MovieListBody(viewModel: viewModel)),
+              Expanded(child: _MovieListBody(vm: vm)),
             ],
           );
         },
@@ -67,63 +64,40 @@ class MovieListScreen extends StatelessWidget {
 }
 
 class _MovieListBody extends StatelessWidget {
-  const _MovieListBody({required this.viewModel});
+  const _MovieListBody({required this.vm});
 
-  final MovieListViewModel viewModel;
+  final PagedMoviesViewModel vm;
 
   @override
   Widget build(BuildContext context) {
-    return switch (viewModel.status) {
-      MovieListLoadStatus.idle || MovieListLoadStatus.loading =>
-        const MovieListLoading(showGenreSkeleton: false),
-      MovieListLoadStatus.error => MovieListError(
-        message: viewModel.message ?? MovieListError.defaultMessage,
-        onRetry: () =>
-            _runAndHandle(context, context.read<MovieListViewModel>().retry()),
+    return switch (vm.phase) {
+      LoadPhase.idle ||
+      LoadPhase.loading => const MovieListLoading(showGenreSkeleton: false),
+      LoadPhase.error => MovieListError(
+        message: vm.errorMessage ?? MovieListError.defaultMessage,
+        onRetry: vm.reload,
       ),
-      MovieListLoadStatus.empty => _RefreshableList(
-        enabled: !viewModel.isBusy,
+      LoadPhase.empty => RefreshIndicator(
+        color: AppColors.violet,
+        onRefresh: vm.reload,
         child: const _ScrollableEmpty(),
       ),
-      MovieListLoadStatus.success => _RefreshableList(
-        enabled: !viewModel.isBusy,
+      LoadPhase.ready => RefreshIndicator(
+        color: AppColors.violet,
+        notificationPredicate: (notification) =>
+            !vm.isLoadingMore && notification.depth == 0,
+        onRefresh: vm.reload,
         child: MovieGrid(
-          movies: viewModel.movies,
-          genreNames: viewModel.genreNames,
-          onMovieTap: (movie) => _openDetail(context, movie, viewModel),
+          movies: vm.movies,
+          genreNames: vm.genreNames,
+          footer: MoviePageFooter(vm: vm),
+          onMovieTap: (movie) => context.push(
+            AppRouter.movieDetailLocation(movie.id),
+            extra: movie,
+          ),
         ),
       ),
     };
-  }
-
-  void _openDetail(
-    BuildContext context,
-    TmdbMovieDto movie,
-    MovieListViewModel viewModel,
-  ) {
-    context.push(AppRouter.movieDetailLocation(movie.id), extra: movie);
-  }
-}
-
-class _RefreshableList extends StatelessWidget {
-  const _RefreshableList({required this.enabled, required this.child});
-
-  final bool enabled;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      color: AppColors.violet,
-      notificationPredicate: (notification) =>
-          enabled && notification.depth == 0,
-      onRefresh: () async {
-        final result = await context.read<MovieListViewModel>().refresh();
-        // Dialog는 새로고침 indicator가 닫힌 뒤에 띄운다.
-        if (context.mounted) unawaited(_handleResult(context, result));
-      },
-      child: child,
-    );
   }
 }
 
@@ -132,9 +106,9 @@ class _GenreFilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = context.watch<MovieListViewModel>();
-    final selectedCount = viewModel.selectedGenreIds?.length ?? 0;
-    final enabled = viewModel.genres.isNotEmpty && !viewModel.isBusy;
+    final vm = context.watch<PagedMoviesViewModel>();
+    final selectedCount = vm.selectedGenreIds?.length ?? 0;
+    final enabled = vm.genres.isNotEmpty && !vm.isBusy;
 
     return IconButton(
       tooltip: '장르 필터',
@@ -149,7 +123,7 @@ class _GenreFilterButton extends StatelessWidget {
   }
 
   Future<void> _openFilterSheet(BuildContext context) async {
-    final viewModel = context.read<MovieListViewModel>();
+    final vm = context.read<PagedMoviesViewModel>();
 
     final result = await showModalBottomSheet<List<int>>(
       context: context,
@@ -166,8 +140,8 @@ class _GenreFilterButton extends StatelessWidget {
           maxChildSize: 0.9,
           builder: (context, scrollController) {
             return GenreFilterSheet(
-              genres: viewModel.genres,
-              initialGenreIds: viewModel.selectedGenreIds ?? const [],
+              genres: vm.genres,
+              initialGenreIds: vm.selectedGenreIds ?? const [],
               scrollController: scrollController,
             );
           },
@@ -176,7 +150,7 @@ class _GenreFilterButton extends StatelessWidget {
     );
 
     if (result == null || !context.mounted) return;
-    await _selectGenres(context, result);
+    await vm.loadInitial(genreIds: result);
   }
 }
 
@@ -197,33 +171,4 @@ class _ScrollableEmpty extends StatelessWidget {
       },
     );
   }
-}
-
-Future<void> _selectGenres(BuildContext context, List<int>? genreIds) {
-  return _runAndHandle(
-    context,
-    context.read<MovieListViewModel>().selectGenres(genreIds),
-  );
-}
-
-Future<void> _runAndHandle(
-  BuildContext context,
-  Future<MovieListLoadResult> request,
-) async {
-  final result = await request;
-  if (context.mounted) await _handleResult(context, result);
-}
-
-Future<void> _handleResult(
-  BuildContext context,
-  MovieListLoadResult result,
-) async {
-  if (result != MovieListLoadResult.failedWithPrevious) return;
-
-  final viewModel = context.read<MovieListViewModel>();
-  final retry = await MovieLoadRetryDialog.show(context);
-  if (!retry || !context.mounted) return;
-
-  final next = await viewModel.retry();
-  if (context.mounted) await _handleResult(context, next);
 }

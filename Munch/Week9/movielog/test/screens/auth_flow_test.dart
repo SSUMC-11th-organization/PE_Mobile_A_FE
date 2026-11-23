@@ -180,38 +180,64 @@ void main() {
     test('보호 경로에만 Bearer 토큰을 붙인다', () async {
       expect(
         (await headersFor(
-          'https://workbook.devnoco.com/v7/members/me',
+          'https://workbook.devnoco.com/v8/members/me',
           't',
         ))['Authorization'],
         'Bearer t',
       );
       expect(
         (await headersFor(
-          'https://workbook.devnoco.com/v7/ratings/3',
+          'https://workbook.devnoco.com/v8/ratings/3',
           't',
         ))['Authorization'],
         'Bearer t',
       );
       expect(
-        await headersFor('https://workbook.devnoco.com/v7/auth/login', 't'),
+        await headersFor('https://workbook.devnoco.com/v8/auth/login', 't'),
         isNot(contains('Authorization')),
       );
       expect(
         await headersFor(
-          'https://workbook.devnoco.com/v7/members/1/ratings',
+          'https://workbook.devnoco.com/v8/members/1/ratings',
           't',
         ),
         isNot(contains('Authorization')),
       );
       expect(
-        await headersFor('https://api.themoviedb.org/v7/ratings', 't'),
+        await headersFor('https://api.themoviedb.org/v8/ratings', 't'),
         isNot(contains('Authorization')),
       );
     });
 
+    test('즐겨찾기는 정해진 메서드·경로에만 Bearer 토큰을 붙인다', () async {
+      Future<Object?> authFor(String method, String path) async {
+        late Map<String, dynamic> headers;
+        final dio = Dio()
+          ..httpClientAdapter = StubHttpAdapter((options) {
+            headers = options.headers;
+            return (200, {});
+          })
+          ..interceptors.add(AuthInterceptor(InMemoryTokenStorage('t')));
+        await dio.request(
+          'https://workbook.devnoco.com$path',
+          options: Options(method: method),
+        );
+        return headers['Authorization'];
+      }
+
+      expect(await authFor('GET', '/v8/favorites'), 'Bearer t');
+      expect(await authFor('POST', '/v8/favorites'), 'Bearer t');
+      expect(await authFor('GET', '/v8/favorites/550'), 'Bearer t');
+      expect(await authFor('DELETE', '/v8/favorites/550'), 'Bearer t');
+      expect(await authFor('POST', '/v8/movie-records'), 'Bearer t');
+      expect(await authFor('DELETE', '/v8/favorites'), isNull);
+      expect(await authFor('GET', '/v8/favorites/abc'), isNull);
+      expect(await authFor('GET', '/v7/members/me'), isNull);
+    });
+
     test('토큰이 없으면 헤더 없이 보낸다', () async {
       expect(
-        await headersFor('https://workbook.devnoco.com/v7/ratings', null),
+        await headersFor('https://workbook.devnoco.com/v8/ratings', null),
         isNot(contains('Authorization')),
       );
     });

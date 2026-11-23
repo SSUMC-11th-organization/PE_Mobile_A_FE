@@ -5,9 +5,12 @@ import 'package:provider/provider.dart';
 
 import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
+import 'core/session/auth_session_bridge.dart';
+import 'core/session/session_guard.dart';
 import 'core/storage/saved_email_storage.dart';
 import 'core/storage/token_storage.dart';
 import 'data/services/auth_api_service.dart';
+import 'data/services/favorite_api_service.dart';
 import 'data/services/member_api_service.dart';
 import 'data/services/rating_api_service.dart';
 import 'data/services/sign_up_service.dart';
@@ -23,6 +26,7 @@ class MovieLogApp extends StatefulWidget {
     this.movieService,
     this.signUpService,
     this.ratingApiService,
+    this.favoriteApiService,
     this.authApiService,
     this.memberApiService,
     this.tokenStorage,
@@ -33,6 +37,7 @@ class MovieLogApp extends StatefulWidget {
   final TmdbMovieService? movieService;
   final SignUpService? signUpService;
   final RatingApiService? ratingApiService;
+  final FavoriteApiService? favoriteApiService;
   final AuthApiService? authApiService;
   final MemberApiService? memberApiService;
   final TokenStorage? tokenStorage;
@@ -77,6 +82,10 @@ class _MovieLogAppState extends State<MovieLogApp> {
               widget.ratingApiService ??
               RatingApiService(_publicClient, _authClient),
         ),
+        Provider<FavoriteApiService>(
+          create: (_) =>
+              widget.favoriteApiService ?? FavoriteApiService(_authClient),
+        ),
         ChangeNotifierProvider<SessionRatingStore>(
           create: (_) => widget.sessionRatingStore ?? SessionRatingStore(),
         ),
@@ -87,6 +96,23 @@ class _MovieLogAppState extends State<MovieLogApp> {
             context.read<TokenStorage>(),
             context.read<SessionRatingStore>(),
           ),
+        ),
+        Provider<AuthSessionBridge>(
+          lazy: false,
+          create: (context) {
+            final auth = context.read<AuthViewModel>();
+            return AuthSessionBridge(
+              authSignals: auth,
+              sessionVersion: () => auth.sessionVersion,
+              verifiedEmail: () => auth.status == AuthStatus.signedIn
+                  ? auth.member?.email
+                  : null,
+            );
+          },
+          dispose: (_, bridge) => bridge.dispose(),
+        ),
+        Provider<SessionGuard>(
+          create: (context) => context.read<AuthSessionBridge>().guard,
         ),
       ],
       child: const _MovieLogRouterApp(),

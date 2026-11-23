@@ -45,7 +45,16 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 40),
                     const ProfileStats(),
                     const SizedBox(height: 24),
-                    const MyRatingsEntry(),
+                    const ProfileMenuEntry(
+                      title: '내가 등록한 평점',
+                      location: '/my/ratings',
+                      emphasized: true,
+                    ),
+                    const SizedBox(height: 12),
+                    const ProfileMenuEntry(
+                      title: '내 즐겨찾기',
+                      location: '/my/favorites',
+                    ),
                     const SizedBox(height: 32),
                     const FavoriteGenres(),
                   ],
@@ -174,8 +183,17 @@ class ProfileStats extends StatelessWidget {
   }
 }
 
-class MyRatingsEntry extends StatelessWidget {
-  const MyRatingsEntry({super.key});
+class ProfileMenuEntry extends StatelessWidget {
+  const ProfileMenuEntry({
+    super.key,
+    required this.title,
+    required this.location,
+    this.emphasized = false,
+  });
+
+  final String title;
+  final String location;
+  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
@@ -184,21 +202,25 @@ class MyRatingsEntry extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: AppColors.violet.withValues(alpha: 0.2),
+          color: emphasized
+              ? AppColors.violet.withValues(alpha: 0.2)
+              : AppColors.skeleton,
           width: 1.5,
         ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/my/ratings'),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        onTap: () => context.push(location),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: Row(
             children: [
-              Expanded(
-                child: Text('내가 등록한 평점', style: AppTextStyles.titleMedium),
+              Expanded(child: Text(title, style: AppTextStyles.titleMedium)),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.violet,
+                size: 28,
               ),
-              Icon(Icons.chevron_right, color: AppColors.violet, size: 28),
             ],
           ),
         ),

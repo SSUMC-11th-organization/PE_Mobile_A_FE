@@ -9,9 +9,11 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
+import '../widgets/favorite_button.dart';
 import '../widgets/movie_card.dart';
 import '../widgets/rating_dialog.dart';
 import '../widgets/tmdb_poster_image.dart';
@@ -24,13 +26,15 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool _isFavorite = false;
   Map<int, String> _genreNames = const {};
 
   @override
   void initState() {
     super.initState();
     _loadGenreNames();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteDetailViewModel>().load();
+    });
   }
 
   Future<void> _loadGenreNames() async {
@@ -53,11 +57,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       ..showSnackBar(
         SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
-  }
-
-  void _toggleFavorite() {
-    setState(() => _isFavorite = !_isFavorite);
-    _showSnackBar(_isFavorite ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 삭제했어요.');
   }
 
   Future<void> _openRatingDialog() async {
@@ -106,11 +105,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           _SynopsisSection(overview: movie.overview),
         ],
       ),
-      bottomNavigationBar: _DetailActionBar(
-        isFavorite: _isFavorite,
-        onFavoritePressed: _toggleFavorite,
-        onRatePressed: _openRatingDialog,
-      ),
+      bottomNavigationBar: _DetailActionBar(onRatePressed: _openRatingDialog),
     );
   }
 }
@@ -134,20 +129,37 @@ class _MovieInfoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            movie.title,
-            style: AppTextStyles.titleLarge.copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      movie.title,
+                      style: AppTextStyles.titleLarge.copyWith(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (year != null || genres.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        [
+                          ?year,
+                          if (genres.isNotEmpty) genres.join('/'),
+                        ].join(' • '),
+                        style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const FavoriteButton(),
+            ],
           ),
-          if (year != null || genres.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              [?year, if (genres.isNotEmpty) genres.join('/')].join(' • '),
-              style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
-            ),
-          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -230,14 +242,8 @@ class _SynopsisSection extends StatelessWidget {
 }
 
 class _DetailActionBar extends StatelessWidget {
-  const _DetailActionBar({
-    required this.isFavorite,
-    required this.onFavoritePressed,
-    required this.onRatePressed,
-  });
+  const _DetailActionBar({required this.onRatePressed});
 
-  final bool isFavorite;
-  final VoidCallback onFavoritePressed;
   final VoidCallback onRatePressed;
 
   @override
@@ -253,43 +259,16 @@ class _DetailActionBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onFavoritePressed,
-                      icon: Icon(
-                        isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                      ),
-                      label: const Text('즐겨찾기'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.violet,
-                        side: const BorderSide(color: AppColors.violet),
-                        minimumSize: const Size.fromHeight(52),
-                        shape: const StadiumBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: onRatePressed,
-                      icon: const Icon(Icons.rate_review_outlined),
-                      label: const Text('평점 남기기'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.violet,
-                        foregroundColor: AppColors.white,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: const StadiumBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          child: ElevatedButton.icon(
+            onPressed: onRatePressed,
+            icon: const Icon(Icons.rate_review_outlined),
+            label: const Text('평점 남기기'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.violet,
+              foregroundColor: AppColors.white,
+              minimumSize: const Size.fromHeight(52),
+              shape: const StadiumBorder(),
+            ),
           ),
         ),
       ),

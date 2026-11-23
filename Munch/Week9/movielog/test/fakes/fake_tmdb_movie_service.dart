@@ -87,6 +87,35 @@ class FakeTmdbMovieService extends TmdbMovieService {
     return discover(page, genreIds);
   }
 
+  final searchCalls = <({int page, String query})>[];
+  final searchGates = <String, Completer<void>>{};
+  bool failSearch = false;
+
+  TmdbMoviePageDto Function(int page, String query) search = (page, query) =>
+      pageFixture(page, [100 + page], totalPages: 2);
+
+  @override
+  Future<TmdbMoviePageDto> searchMovies({
+    required int page,
+    required String query,
+  }) async {
+    searchCalls.add((page: page, query: query));
+    await searchGates[query]?.future;
+    if (failSearch) throw networkError('/search/movie');
+    return search(page, query);
+  }
+
+  final detailCalls = <int>[];
+
+  @override
+  Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
+    detailCalls.add(movieId);
+    if (failingMovieIds.contains(movieId)) {
+      throw networkError('/movie/$movieId');
+    }
+    return movieDetails[movieId] ?? movieFixture(movieId);
+  }
+
   Map<int, TmdbMovieDto?> movieDetails = {};
   Set<int> failingMovieIds = {};
   final findMovieCalls = <int>[];

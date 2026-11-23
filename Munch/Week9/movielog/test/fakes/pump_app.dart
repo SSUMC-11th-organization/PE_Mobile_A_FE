@@ -3,6 +3,7 @@ import 'package:movielog/movie_log_app.dart';
 import 'package:movielog/view_models/session_rating_store.dart';
 
 import 'fake_auth.dart';
+import 'fake_favorite_api_service.dart';
 import 'fake_rating_api_service.dart';
 import 'fake_sign_up_service.dart';
 import 'fake_tmdb_movie_service.dart';
@@ -12,6 +13,7 @@ Future<void> pumpApp(
   FakeTmdbMovieService? movieService,
   FakeSignUpService? signUpService,
   FakeRatingApiService? ratingService,
+  FakeFavoriteApiService? favoriteService,
   FakeAuthApiService? authService,
   FakeMemberApiService? memberService,
   InMemoryTokenStorage? tokenStorage,
@@ -25,6 +27,7 @@ Future<void> pumpApp(
       movieService: movieService ?? FakeTmdbMovieService(),
       signUpService: signUpService ?? FakeSignUpService(),
       ratingApiService: ratingService ?? FakeRatingApiService(),
+      favoriteApiService: favoriteService ?? FakeFavoriteApiService(),
       authApiService: authService ?? FakeAuthApiService(),
       memberApiService: memberService ?? FakeMemberApiService(),
       tokenStorage:

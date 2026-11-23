@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/models/rating_dto.dart';
 
-// v7에는 토큰 기반 '내 평점 목록 GET'이 없어 현재 세션에서 등록한 평점만 보관한다.
+// v8에도 토큰 기반 '내 평점 목록 GET'이 없어 현재 세션에서 등록한 평점만 보관한다.
 class SessionRatingStore extends ChangeNotifier {
   final List<RatingDto> _ratings = [];
 

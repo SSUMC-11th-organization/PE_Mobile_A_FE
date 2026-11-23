@@ -40,7 +40,7 @@ void main() {
     });
   });
 
-  group('RatingApiService v7', () {
+  group('RatingApiService v8', () {
     Map<String, dynamic> ratingJson(int id) => {
       'ratingId': id,
       'movieId': 550,
@@ -57,7 +57,7 @@ void main() {
       'result': result,
     };
 
-    test('유저별 평점 조회는 공개 Client로 v7 경로를 호출한다', () async {
+    test('유저별 평점 조회는 공개 Client로 v8 경로를 호출한다', () async {
       late String requestedPath;
       final service = RatingApiService(
         stubDio((options) {
@@ -69,11 +69,11 @@ void main() {
 
       final ratings = await service.fetchMemberRatings(1);
 
-      expect(requestedPath, '/v7/members/1/ratings');
+      expect(requestedPath, '/v8/members/1/ratings');
       expect(ratings.single.movieId, 550);
     });
 
-    test('등록은 보호 Client로 /v7/ratings에 memberId 없이 보내고 Rating을 반환한다', () async {
+    test('등록은 보호 Client로 /v8/ratings에 memberId 없이 보내고 Rating을 반환한다', () async {
       late RequestOptions request;
       final service = RatingApiService(
         stubDio((_) => fail('공개 Client를 쓰면 안 됩니다.')),
@@ -88,7 +88,7 @@ void main() {
       );
 
       expect(request.method, 'POST');
-      expect(request.path, '/v7/ratings');
+      expect(request.path, '/v8/ratings');
       expect(request.data, {'movieId': 550, 'score': 4});
       expect(created.ratingId, 12);
     });
@@ -106,7 +106,7 @@ void main() {
       final updated = await service.updateRating(ratingId: 3, score: 2);
 
       expect(request.method, 'PATCH');
-      expect(request.path, '/v7/ratings/3');
+      expect(request.path, '/v8/ratings/3');
       expect(request.data, {'score': 2, 'comment': null});
       expect(updated.ratingId, 3);
     });
@@ -124,7 +124,7 @@ void main() {
       await service.deleteRating(3);
 
       expect(request.method, 'DELETE');
-      expect(request.path, '/v7/ratings/3');
+      expect(request.path, '/v8/ratings/3');
     });
 
     test('등록 result가 없으면 StateError', () async {

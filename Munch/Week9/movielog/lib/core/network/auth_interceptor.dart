@@ -7,12 +7,24 @@ class AuthInterceptor extends Interceptor {
 
   final TokenStorage _storage;
 
+  static final _favoriteMoviePath = RegExp(r'^/v8/favorites/[1-9]\d*$');
+
   bool _isProtected(RequestOptions options) {
+    if (options.uri.host != 'workbook.devnoco.com') return false;
     final path = options.uri.path;
-    return options.uri.host == 'workbook.devnoco.com' &&
-        (path == '/v7/members/me' ||
-            path == '/v7/ratings' ||
-            path.startsWith('/v7/ratings/'));
+    final method = options.method.toUpperCase();
+
+    final memberOrRating =
+        path == '/v8/members/me' ||
+        path == '/v8/ratings' ||
+        path.startsWith('/v8/ratings/');
+    final favorites =
+        (path == '/v8/favorites' && (method == 'GET' || method == 'POST')) ||
+        (_favoriteMoviePath.hasMatch(path) &&
+            (method == 'GET' || method == 'DELETE'));
+    final movieRecord = path == '/v8/movie-records' && method == 'POST';
+
+    return memberOrRating || favorites || movieRecord;
   }
 
   @override

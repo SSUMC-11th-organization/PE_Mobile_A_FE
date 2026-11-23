@@ -7,7 +7,6 @@ import 'package:movielog/widgets/movie_grid.dart';
 import 'package:movielog/widgets/movie_list_empty.dart';
 import 'package:movielog/widgets/movie_list_error.dart';
 import 'package:movielog/widgets/movie_list_loading.dart';
-import 'package:movielog/widgets/movie_load_retry_dialog.dart';
 import 'package:movielog/widgets/tmdb_poster_image.dart';
 
 import '../fakes/fake_tmdb_movie_service.dart';
@@ -82,33 +81,5 @@ void main() {
 
     expect(find.byType(Image), findsNothing);
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
-  });
-
-  testWidgets('재시도 Dialog는 다시 시도 true, 취소 false를 반환한다', (tester) async {
-    bool? result;
-    await tester.pumpWidget(
-      wrap(
-        Builder(
-          builder: (context) => TextButton(
-            onPressed: () async =>
-                result = await MovieLoadRetryDialog.show(context),
-            child: const Text('열기'),
-          ),
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('열기'));
-    await tester.pumpAndSettle();
-    expect(find.text('영화를 불러오지 못했어요'), findsOneWidget);
-    await tester.tap(find.text('다시 시도'));
-    await tester.pumpAndSettle();
-    expect(result, isTrue);
-
-    await tester.tap(find.text('열기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('취소'));
-    await tester.pumpAndSettle();
-    expect(result, isFalse);
   });
 }

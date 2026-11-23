@@ -12,7 +12,7 @@ import 'package:movielog/data/services/auth_api_service.dart';
 import 'package:movielog/data/services/member_api_service.dart';
 
 DioException apiError(int status, String code, {String message = 'x'}) {
-  final options = RequestOptions(path: '/v7');
+  final options = RequestOptions(path: '/v8');
   return DioException(
     requestOptions: options,
     response: Response(
@@ -30,7 +30,7 @@ DioException apiError(int status, String code, {String message = 'x'}) {
 }
 
 DioException connectionError() => DioException(
-  requestOptions: RequestOptions(path: '/v7'),
+  requestOptions: RequestOptions(path: '/v8'),
   type: DioExceptionType.connectionError,
 );
 
