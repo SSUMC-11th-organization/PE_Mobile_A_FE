@@ -9,7 +9,11 @@ class MovieGrid extends StatelessWidget {
     super.key,
     required this.movies,
     this.genreNames = const {},
+    this.controller,
   });
+
+  /// 무한 스크롤에서 스크롤 위치를 볼 때 쓴다.
+  final ScrollController? controller;
 
   final List<TmdbMovieDto> movies;
 
@@ -19,6 +23,7 @@ class MovieGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      controller: controller,
       padding: const EdgeInsets.only(top: 8, bottom: 16),
       itemCount: movies.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

@@ -115,7 +115,7 @@ class _Header extends StatelessWidget {
           child: Text(
             isEdit
                 ? '${viewModel.selectedRatingIds.length}개 선택'
-                // v7에는 토큰 기반 "내 평점 목록" API가 없어 이번 세션에서 등록한 평점만 보여준다.
+                // v8에는 토큰 기반 "내 평점 목록" API가 없어 이번 세션에서 등록한 평점만 보여준다.
                 : '이번 로그인에서 등록한 평점이에요.',
             style: TextStyle(
               fontSize: isEdit ? 14 : 12,
@@ -210,7 +210,7 @@ Future<void> _onEditPressed(BuildContext context, RatingDto rating) async {
       title: '평점을 수정해 주세요',
       initialScore: rating.score,
       initialComment: rating.comment,
-      onSubmit: (score, comment) => viewModel.updateRating(
+      onSubmit: (score, comment, _) => viewModel.updateRating(
         ratingId: rating.ratingId,
         score: score,
         comment: comment,

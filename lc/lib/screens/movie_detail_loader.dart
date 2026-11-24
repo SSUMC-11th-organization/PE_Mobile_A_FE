@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/session/session_guard.dart';
+import '../data/services/favorite_api_service.dart';
+import '../data/services/movie_record_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
 import '../utils/tmdb_movie_format.dart';
 import '../view_models/auth_view_model.dart';
+import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/session_rating_store.dart';
 import '../widgets/movie_list_error.dart';
@@ -68,6 +72,7 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<AuthViewModel>();
     return FutureBuilder<MovieDetailArgs>(
       future: _future,
       builder: (context, snapshot) {
@@ -89,13 +94,40 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
             ),
           );
         }
-        return ChangeNotifierProvider<MovieDetailViewModel>(
-          create: (context) => MovieDetailViewModel(
-            context.read<RatingApiService>(),
-            context.read<SessionRatingStore>(),
-            context.read<AuthViewModel>(),
-            args.movie,
-          ),
+        final accountId = context.read<AuthViewModel>().member?.email;
+        final guard = context.read<SessionGuard>();
+        // 내 정보 확인 전(세션 미확정)에는 즐겨찾기 상태를 만들지 않는다.
+        if (accountId == null || guard.accountId != accountId) {
+          return _SimpleScaffold(
+            onBack: _goBack,
+            child: const Center(
+              child: CircularProgressIndicator(color: AppColors.violet),
+            ),
+          );
+        }
+        return MultiProvider(
+          // 계정·세션이 바뀌면 이전 계정의 즐겨찾기 상태를 버리고 새로 만든다.
+          key: ValueKey('detail:$accountId:${guard.generation}'),
+          providers: [
+            ChangeNotifierProvider<MovieDetailViewModel>(
+              create: (context) => MovieDetailViewModel(
+                context.read<RatingApiService>(),
+                context.read<SessionRatingStore>(),
+                context.read<AuthViewModel>(),
+                args.movie,
+                recordService: context.read<MovieRecordApiService>(),
+              ),
+            ),
+            ChangeNotifierProvider<FavoriteDetailViewModel>(
+              create: (context) => FavoriteDetailViewModel(
+                movieId: widget.movieId,
+                favoriteApi: context.read<FavoriteApiService>(),
+                sessionGuard: guard,
+                accountId: accountId,
+                onSessionExpired: context.read<AuthViewModel>().expireSession,
+              )..load(),
+            ),
+          ],
           child: MovieDetailScreen(args: args),
         );
       },

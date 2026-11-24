@@ -25,26 +25,26 @@ void main() {
       adapter.requests.last.headers['Authorization'] as String?;
 
   test('보호 경로(내 정보, 평점 쓰기)에는 Bearer 토큰을 붙인다', () async {
-    await authDio.get('/v7/members/me');
+    await authDio.get('/v8/members/me');
     expect(sentAuth(), 'Bearer $_jwt');
 
-    await authDio.post('/v7/ratings', data: {'movieId': 550, 'score': 5});
+    await authDio.post('/v8/ratings', data: {'movieId': 550, 'score': 5});
     expect(sentAuth(), 'Bearer $_jwt');
 
-    await authDio.patch('/v7/ratings/3', data: {'score': 4, 'comment': null});
+    await authDio.patch('/v8/ratings/3', data: {'score': 4, 'comment': null});
     expect(sentAuth(), 'Bearer $_jwt');
 
-    await authDio.delete('/v7/ratings/3');
+    await authDio.delete('/v8/ratings/3');
     expect(sentAuth(), 'Bearer $_jwt');
   });
 
   test('보호용 Client로 보내도 공개 경로에는 토큰을 붙이지 않는다', () async {
     for (final path in [
-      '/v7/auth/login',
-      '/v7/members',
-      '/v7/members/nickname/abc',
-      '/v7/members/1/ratings',
-      '/v7/ratingsX',
+      '/v8/auth/login',
+      '/v8/members',
+      '/v8/members/nickname/abc',
+      '/v8/members/1/ratings',
+      '/v8/ratingsX',
     ]) {
       await authDio.get(path);
       expect(sentAuth(), isNull, reason: path);
@@ -55,14 +55,14 @@ void main() {
     await authDio.get('https://image.tmdb.org/t/p/w500/a.jpg');
     expect(sentAuth(), isNull);
 
-    await authDio.get('https://api.themoviedb.org/v7/ratings');
+    await authDio.get('https://api.themoviedb.org/v8/ratings');
     expect(sentAuth(), isNull);
   });
 
   test('공개용 Client는 토큰이 저장돼 있어도 어떤 요청에도 붙이지 않는다', () async {
     final publicDio = createMovieLogClient()..httpClientAdapter = adapter;
 
-    await publicDio.get('/v7/members/me');
+    await publicDio.get('/v8/members/me');
 
     expect(sentAuth(), isNull);
   });
@@ -70,22 +70,22 @@ void main() {
   test('토큰이 없으면 헤더 없이 보낸다 (서버가 AUTH401_2로 답한다)', () async {
     storage.token = null;
 
-    await authDio.get('/v7/members/me');
+    await authDio.get('/v8/members/me');
 
     expect(sentAuth(), isNull);
   });
 
   test('요청마다 저장소를 다시 읽어, 로그아웃 뒤에는 이전 토큰을 재사용하지 않는다', () async {
-    await authDio.get('/v7/members/me');
+    await authDio.get('/v8/members/me');
     expect(sentAuth(), 'Bearer $_jwt');
 
     storage.token = 'new-token';
-    await authDio.get('/v7/members/me');
+    await authDio.get('/v8/members/me');
     expect(sentAuth(), 'Bearer new-token');
 
     storage.token = null;
     await authDio.get(
-      '/v7/members/me',
+      '/v8/members/me',
       options: Options(headers: {'Authorization': 'Bearer stale'}),
     );
     expect(sentAuth(), isNull);
@@ -95,7 +95,7 @@ void main() {
     storage.failRead = true;
 
     await expectLater(
-      authDio.get('/v7/members/me'),
+      authDio.get('/v8/members/me'),
       throwsA(
         isA<DioException>()
             .having((e) => e.response, 'response', isNull)

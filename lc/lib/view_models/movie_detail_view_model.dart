@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../core/network/api_error.dart';
 import '../data/models/rating_request.dart';
 import '../data/models/tmdb_movie_dto.dart';
+import '../data/models/movie_record_models.dart';
+import '../data/services/movie_record_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import 'auth_view_model.dart';
 import 'session_rating_store.dart';
@@ -18,12 +20,14 @@ class MovieDetailViewModel extends ChangeNotifier {
     this._ratingService,
     this._store,
     this._auth,
-    this.movie,
-  );
+    this.movie, {
+    this.recordService,
+  });
 
   final RatingApiService _ratingService;
   final SessionRatingStore _store;
   final AuthViewModel _auth;
+  final MovieRecordApiService? recordService;
 
   /// 평점을 남길 영화. 서버 movieId는 이 DTO의 TMDB id를 그대로 쓴다.
   final TmdbMovieDto movie;
@@ -37,6 +41,7 @@ class MovieDetailViewModel extends ChangeNotifier {
     final version = _auth.sessionVersion;
     submitStatus = SubmitStatus.submitting;
     submitMessage = null;
+    dismissOnError = false;
     notifyListeners();
 
     try {
@@ -56,6 +61,66 @@ class MovieDetailViewModel extends ChangeNotifier {
         await _auth.expireSession();
       } else {
         // RATING409_1(이미 평점을 남긴 영화), COMMON400 등: 안내만 하고 로그인 상태는 유지한다.
+        submitMessage = writeErrorMessage(error);
+      }
+    } catch (_) {
+      if (_isStale(version)) return;
+      submitStatus = SubmitStatus.error;
+      submitMessage = '저장 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  /// 마지막 저장 실패가 "Dialog를 닫고 Snackbar로 안내"해야 하는 종류인지.
+  bool dismissOnError = false;
+
+  /// 평점과 즐겨찾기를 `POST /v8/movie-records`로 한 번에 저장한다. (Challenge C)
+  /// 오류 코드별로 Dialog를 유지할지([RatingWriteException.dismissDialog])를 나눈다.
+  Future<void> saveRecord({
+    required int score,
+    String? comment,
+    required bool addToFavorites,
+  }) async {
+    final service = recordService;
+    if (service == null) throw StateError('movie-records Service가 없습니다.');
+    if (submitStatus == SubmitStatus.submitting) return;
+    final version = _auth.sessionVersion;
+    submitStatus = SubmitStatus.submitting;
+    submitMessage = null;
+    dismissOnError = false;
+    notifyListeners();
+
+    try {
+      final result = await service.createRecord(
+        MovieRecordRequest(
+          movieId: movie.id,
+          score: score,
+          comment: comment,
+          addToFavorites: addToFavorites,
+        ),
+      );
+      if (_isStale(version)) return;
+      _store.add(result.rating);
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      if (_isStale(version)) return;
+      submitStatus = SubmitStatus.error;
+      final code = apiErrorCode(error);
+      if (isSessionExpiredError(error)) {
+        submitMessage = '로그인이 만료됐어요. 다시 로그인해 주세요.';
+        await _auth.expireSession();
+      } else if (code == 'RATING409_1') {
+        submitMessage = apiErrorMessage(error) ?? '이미 평점을 남긴 영화예요.';
+        dismissOnError = true;
+      } else if (code == 'FAVORITE409_1') {
+        submitMessage =
+            apiErrorMessage(error) ?? '이미 즐겨찾기한 영화예요. 평점은 저장되지 않았어요.';
+        dismissOnError = true;
+      } else if (code == 'MEMBER404_1') {
+        submitMessage = apiErrorMessage(error) ?? '회원 정보를 찾을 수 없어요.';
+        dismissOnError = true;
+      } else {
+        // COMMON400과 네트워크 실패: Dialog를 유지하고 입력을 보존한다.
         submitMessage = writeErrorMessage(error);
       }
     } catch (_) {

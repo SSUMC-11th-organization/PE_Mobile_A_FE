@@ -12,7 +12,9 @@ import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/movie_detail_loader.dart';
+import '../screens/favorites_screen.dart';
 import '../screens/movie_list_screen.dart';
+import '../screens/movie_search_screen.dart';
 import '../screens/my_page_screen.dart';
 import '../screens/my_ratings_screen.dart';
 import '../screens/signup_screen.dart';
@@ -20,7 +22,10 @@ import '../screens/splash_screen.dart';
 import '../view_models/auth_view_model.dart';
 import '../view_models/edit_profile_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
-import '../view_models/movie_list_view_model.dart';
+import '../view_models/favorites_view_model.dart';
+import '../view_models/paged_movies_view_model.dart';
+import '../core/session/session_guard.dart';
+import '../data/services/favorite_api_service.dart';
 import '../view_models/my_ratings_view_model.dart';
 import '../view_models/session_rating_store.dart';
 import '../view_models/sign_up_view_model.dart';
@@ -104,9 +109,9 @@ class AppRouter {
             GoRoute(
               path: '/movies',
               builder: (context, state) =>
-                  ChangeNotifierProvider<MovieListViewModel>(
+                  ChangeNotifierProvider<PagedMoviesViewModel>(
                     create: (context) =>
-                        MovieListViewModel(context.read<TmdbMovieService>())
+                        PagedMoviesViewModel(context.read<TmdbMovieService>())
                           ..loadInitial(),
                     child: const MovieListScreen(),
                   ),
@@ -132,6 +137,30 @@ class AppRouter {
                       ),
                 ),
                 GoRoute(
+                  path: 'favorites', // 최종 경로: /my/favorites
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) {
+                    final auth = context.watch<AuthViewModel>();
+                    final guard = context.read<SessionGuard>();
+                    final email = auth.member?.email;
+                    if (email == null || guard.accountId != email) {
+                      return _MemberRequiredScreen(auth: auth);
+                    }
+                    return ChangeNotifierProvider<FavoritesViewModel>(
+                      // 계정이 바뀌면 이전 계정의 목록을 버리고 새로 만든다.
+                      key: ValueKey('favorites:$email:${guard.generation}'),
+                      create: (context) => FavoritesViewModel(
+                        favoriteApi: context.read<FavoriteApiService>(),
+                        movieService: context.read<TmdbMovieService>(),
+                        sessionGuard: guard,
+                        accountId: email,
+                        onSessionExpired: auth.expireSession,
+                      )..load(),
+                      child: const FavoritesScreen(),
+                    );
+                  },
+                ),
+                GoRoute(
                   path: 'profile/edit', // 최종 경로: /my/profile/edit
                   parentNavigatorKey: rootNavigatorKey,
                   builder: (context, state) {
@@ -151,6 +180,15 @@ class AppRouter {
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: '/movies/search', // 정적 경로는 :movieId보다 먼저 둔다.
+          builder: (context, state) =>
+              ChangeNotifierProvider<PagedMoviesViewModel>(
+                create: (context) =>
+                    PagedMoviesViewModel(context.read<TmdbMovieService>()),
+                child: const MovieSearchScreen(),
+              ),
         ),
         GoRoute(
           path: '/movies/:movieId',

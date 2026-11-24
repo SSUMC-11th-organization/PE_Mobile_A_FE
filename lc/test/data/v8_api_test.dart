@@ -125,7 +125,7 @@ void main() {
   });
 
   group('로그인', () {
-    test('POST /v7/auth/login으로 보내고 result의 accessToken을 읽는다', () async {
+    test('POST /v8/auth/login으로 보내고 result의 accessToken을 읽는다', () async {
       final adapter = StubAdapter(
         body: _ok({'nickname': '영화광', 'accessToken': 'jwt-value'}),
       );
@@ -136,7 +136,7 @@ void main() {
 
       final request = adapter.requests.single;
       expect(request.method, 'POST');
-      expect(request.uri.path, '/v7/auth/login');
+      expect(request.uri.path, '/v8/auth/login');
       // 이메일만 trim하고 비밀번호는 입력 그대로 보낸다.
       expect(request.data, {'email': 'a@b.com', 'password': ' Pass1!word '});
       expect(result.accessToken, 'jwt-value');
@@ -187,18 +187,18 @@ void main() {
       'createdAt': '2026-10-10T03:00:00.000Z',
     };
 
-    test('GET /v7/members/me의 result를 MemberInfo로 읽는다 (memberId는 없다)', () async {
+    test('GET /v8/members/me의 result를 MemberInfo로 읽는다 (memberId는 없다)', () async {
       final adapter = StubAdapter(body: _ok(memberJson));
 
       final member = await MemberApiService(_dioWith(adapter)).fetchMe();
 
-      expect(adapter.requests.single.uri.path, '/v7/members/me');
+      expect(adapter.requests.single.uri.path, '/v8/members/me');
       expect(member.email, 'a@b.com');
       expect(member.nickname, '영화광');
       expect(member.createdAt, DateTime.utc(2026, 10, 10, 3));
     });
 
-    test('닉네임 수정은 PATCH /v7/members/me로 nickname만 보낸다', () async {
+    test('닉네임 수정은 PATCH /v8/members/me로 nickname만 보낸다', () async {
       final adapter = StubAdapter(body: _ok({...memberJson, 'nickname': '새이름'}));
 
       final member = await MemberApiService(
@@ -207,7 +207,7 @@ void main() {
 
       final request = adapter.requests.single;
       expect(request.method, 'PATCH');
-      expect(request.uri.path, '/v7/members/me');
+      expect(request.uri.path, '/v8/members/me');
       expect(request.data, {'nickname': '새이름'});
       expect(member.nickname, '새이름');
     });
@@ -218,11 +218,11 @@ void main() {
     });
   });
 
-  group('평점 v7', () {
+  group('평점 v8', () {
     RatingApiService service(StubAdapter public, StubAdapter auth) =>
         RatingApiService(_dioWith(public), _dioWith(auth));
 
-    test('등록은 /v7/ratings로 보내고 path·body에 memberId가 없다. result는 Rating 객체다', () async {
+    test('등록은 /v8/ratings로 보내고 path·body에 memberId가 없다. result는 Rating 객체다', () async {
       final public = StubAdapter();
       final auth = StubAdapter(
         statusCode: 201,
@@ -235,7 +235,7 @@ void main() {
 
       final request = auth.requests.single;
       expect(request.method, 'POST');
-      expect(request.uri.path, '/v7/ratings');
+      expect(request.uri.path, '/v8/ratings');
       expect(request.uri.path, isNot(contains('members')));
       expect(request.data, {'movieId': 550, 'score': 5, 'comment': '최고!'});
       expect((request.data as Map).containsKey('memberId'), isFalse);
@@ -244,7 +244,7 @@ void main() {
       expect(public.requests, isEmpty); // 쓰기는 보호 Client로만 간다.
     });
 
-    test('수정은 PATCH /v7/ratings/{id}로 score와 comment를 항상 함께 보낸다', () async {
+    test('수정은 PATCH /v8/ratings/{id}로 score와 comment를 항상 함께 보낸다', () async {
       final auth = StubAdapter(body: _ok({..._ratingJson, 'score': 2, 'comment': null}));
 
       final rating = await service(StubAdapter(), auth).updateRating(
@@ -254,7 +254,7 @@ void main() {
 
       final request = auth.requests.single;
       expect(request.method, 'PATCH');
-      expect(request.uri.path, '/v7/ratings/12');
+      expect(request.uri.path, '/v8/ratings/12');
       expect(request.data, {'score': 2, 'comment': null});
       expect((request.data as Map).containsKey('comment'), isTrue);
       expect(rating.score, 2);
@@ -267,7 +267,7 @@ void main() {
       await service(StubAdapter(), auth).deleteRating(12);
 
       expect(auth.requests.single.method, 'DELETE');
-      expect(auth.requests.single.uri.path, '/v7/ratings/12');
+      expect(auth.requests.single.uri.path, '/v8/ratings/12');
     });
 
     test('삭제가 200이 아닌 성공 응답이면 StateError다', () async {
@@ -284,13 +284,13 @@ void main() {
       expect(() => parseRatingResult([1, 2]), throwsStateError);
     });
 
-    test('유저별 평점 조회는 공개 Client로 /v7/members/{id}/ratings의 직접 배열을 읽는다', () async {
+    test('유저별 평점 조회는 공개 Client로 /v8/members/{id}/ratings의 직접 배열을 읽는다', () async {
       final public = StubAdapter(body: [_ratingJson]);
       final auth = StubAdapter();
 
       final ratings = await service(public, auth).fetchMyRatings(1);
 
-      expect(public.requests.single.uri.path, '/v7/members/1/ratings');
+      expect(public.requests.single.uri.path, '/v8/members/1/ratings');
       expect(auth.requests, isEmpty); // 공개 조회는 보호 Client를 쓰지 않는다.
       expect(ratings.single.ratingId, 12);
       expect(() => parseRatingList({'a': 1}), throwsStateError);
@@ -309,8 +309,8 @@ void main() {
     });
   });
 
-  group('회원가입·중복 확인 v7', () {
-    test('닉네임·이메일 확인과 가입이 /v7 경로를 쓴다', () async {
+  group('회원가입·중복 확인 v8', () {
+    test('닉네임·이메일 확인과 가입이 /v8 경로를 쓴다', () async {
       final adapter = RecordingAdapter(body: {'available': true});
       final service = SignUpService(_dioWith(adapter));
 
@@ -319,9 +319,9 @@ void main() {
 
       expect(
         adapter.requests.first.uri.path,
-        '/v7/members/nickname/${Uri.encodeComponent('영화광')}',
+        '/v8/members/nickname/${Uri.encodeComponent('영화광')}',
       );
-      expect(adapter.requests.last.uri.path, '/v7/members/email/a%40b.com');
+      expect(adapter.requests.last.uri.path, '/v8/members/email/a%40b.com');
 
       final signUp = StubAdapter(
         statusCode: 201,
@@ -338,7 +338,7 @@ void main() {
           nickname: '영화광',
         ),
       );
-      expect(signUp.requests.single.uri.path, '/v7/members');
+      expect(signUp.requests.single.uri.path, '/v8/members');
       expect(response.result?.memberId, 42);
     });
 

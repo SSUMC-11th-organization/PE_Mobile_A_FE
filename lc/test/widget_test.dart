@@ -98,7 +98,7 @@ void main() {
 
     testWidgets('네트워크 실패는 입력 오류와 다른 문구다', (tester) async {
       await app.pump(tester, signedIn: false);
-      app.auth.loginError = dioFailure('/v7/auth/login');
+      app.auth.loginError = dioFailure('/v8/auth/login');
 
       await app.login(tester);
 
@@ -194,7 +194,7 @@ void main() {
 
     testWidgets('네트워크 실패면 토큰을 지우지 않고 재시도 화면을 보여주며, 다시 시도하면 홈으로 간다', (tester) async {
       app.members
-        ..fetchError = dioFailure('/v7/members/me')
+        ..fetchError = dioFailure('/v8/members/me')
         ..fetchFailTimes = 1;
 
       await app.pump(tester);
@@ -342,7 +342,7 @@ void main() {
 
     testWidgets('네트워크 실패는 Snackbar로 안내하고 로그아웃하지 않으며 다시 저장할 수 있다', (tester) async {
       await openEdit(tester);
-      app.members.updateError = dioFailure('/v7/members/me');
+      app.members.updateError = dioFailure('/v8/members/me');
 
       await tester.enterText(nicknameField(), '새이름');
       await tester.tap(find.widgetWithText(ElevatedButton, '저장'));
@@ -408,7 +408,7 @@ void main() {
     testWidgets('내 정보를 불러오는 동안 인디케이터, 실패하면 재시도 버튼을 보여준다 (로그아웃하지 않는다)', (tester) async {
       await app.pump(tester, signedIn: false);
       app.members
-        ..fetchError = dioFailure('/v7/members/me')
+        ..fetchError = dioFailure('/v8/members/me')
         ..fetchFailTimes = 1;
       await app.login(tester); // 홈 진입 → MainScreen의 loadMember()가 실패
       await app.go(tester, '/my');
@@ -439,7 +439,7 @@ void main() {
         'score': 4,
         'comment': '다시 봐도 좋다',
       });
-      expect(find.textContaining('평점을 등록했습니다'), findsOneWidget);
+      expect(find.textContaining('평점을 저장했습니다'), findsOneWidget);
 
       await app.go(tester, '/my/ratings');
       expect(find.byType(NavigationBar), findsNothing);
@@ -514,15 +514,15 @@ void main() {
   });
 
   group('401 · 403 · 409 처리', () {
-    testWidgets('RATING409_1(이미 평점을 남긴 영화)은 Dialog에 안내만 하고 로그인 상태를 유지한다', (tester) async {
+    testWidgets('RATING409_1(이미 평점을 남긴 영화)은 Dialog를 닫고 Snackbar로 안내하며 로그인 상태를 유지한다', (tester) async {
       await app.pump(tester);
       app.ratings.writeError = commonError(409, 'RATING409_1', '이미 이 영화에 평점을 남기셨습니다.');
 
       await rateFromDetail(tester, comment: '남기던 코멘트');
 
       expect(find.text('이미 이 영화에 평점을 남기셨습니다.'), findsOneWidget);
-      expect(find.byType(RatingDialog), findsOneWidget);
-      expect(find.text('남기던 코멘트'), findsOneWidget); // 입력 유지
+      expect(find.byType(RatingDialog), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
       expect(app.tokens.token, isNotNull);
       expect(find.byType(LoginScreen), findsNothing);
     });
@@ -563,7 +563,7 @@ void main() {
 
     testWidgets('네트워크 실패는 401이 아니다. 로그아웃하지 않고 다시 시도할 수 있다', (tester) async {
       await app.pump(tester);
-      app.ratings.writeError = dioFailure('/v7/ratings');
+      app.ratings.writeError = dioFailure('/v8/ratings');
 
       await rateFromDetail(tester);
 
@@ -573,7 +573,7 @@ void main() {
       app.ratings.writeError = null;
       await tester.tap(confirmButton());
       await tester.pumpAndSettle();
-      expect(find.textContaining('평점을 등록했습니다'), findsOneWidget);
+      expect(find.textContaining('평점을 저장했습니다'), findsOneWidget);
     });
   });
 

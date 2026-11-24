@@ -101,7 +101,7 @@ void main() {
     });
 
     test('네트워크 실패는 Snackbar 문구이고 로그아웃하지 않는다', () async {
-      memberApi.updateError = dioFailure('/v7/members/me');
+      memberApi.updateError = dioFailure('/v8/members/me');
 
       expect(await viewModel.save('새이름'), isFalse);
 
@@ -174,7 +174,7 @@ void main() {
     });
 
     test('네트워크 실패는 로그아웃하지 않는다', () async {
-      ratingApi.writeError = dioFailure('/v7/ratings');
+      ratingApi.writeError = dioFailure('/v8/ratings');
       final viewModel = build();
 
       await viewModel.createRating(score: 5);

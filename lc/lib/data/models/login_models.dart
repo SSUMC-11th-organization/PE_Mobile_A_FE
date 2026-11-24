@@ -1,4 +1,4 @@
-/// POST /v7/auth/login 요청 body. 비밀번호는 입력 그대로 보내고 어디에도 저장하지 않는다.
+/// POST /v8/auth/login 요청 body. 비밀번호는 입력 그대로 보내고 어디에도 저장하지 않는다.
 class LoginRequest {
   const LoginRequest({required this.email, required this.password});
 

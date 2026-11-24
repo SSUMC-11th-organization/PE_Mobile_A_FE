@@ -38,6 +38,23 @@ class TmdbMovieService {
     return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// 검색: 검색어가 비어 있으면 호출하지 않는다. (ViewModel에서 먼저 막는다.)
+  Future<TmdbMoviePageDto> searchMovies({
+    required int page,
+    required String query,
+  }) async {
+    final response = await _dio.get(
+      '/search/movie',
+      queryParameters: {
+        'query': query,
+        'page': page,
+        'language': 'ko-KR',
+        'include_adult': false,
+      },
+    );
+    return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// 영화 한 편을 id로 조회한다. 없는 영화(404)는 DioException으로 전달된다.
   Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
     final response = await _dio.get(

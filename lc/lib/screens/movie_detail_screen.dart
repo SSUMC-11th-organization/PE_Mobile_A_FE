@@ -7,6 +7,7 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
 import '../utils/tmdb_movie_format.dart';
+import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/submit_status.dart';
 import '../widgets/rating_dialog.dart';
@@ -24,7 +25,6 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool _isFavorite = false;
   int _myRating = 0;
 
   void _showMessage(String message) {
@@ -35,35 +35,65 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
   }
 
-  void _toggleFavorite() {
-    setState(() => _isFavorite = !_isFavorite);
-    _showMessage(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.');
+  Future<void> _toggleFavorite() async {
+    final favorite = context.read<FavoriteDetailViewModel>();
+    final wasFavorite = favorite.isFavorite;
+    final ok = await favorite.toggle();
+    if (!mounted) return;
+    if (ok) {
+      _showMessage(wasFavorite ? '즐겨찾기에서 삭제했습니다.' : '즐겨찾기에 추가했습니다.');
+    } else if (favorite.errorMessage != null) {
+      _showMessage(favorite.errorMessage!);
+    }
   }
 
   Future<void> _openRatingDialog() async {
     // await 뒤에는 context를 쓰지 않도록 ViewModel을 먼저 꺼내 둔다.
     final viewModel = context.read<MovieDetailViewModel>();
+    final favorite = context.read<FavoriteDetailViewModel>();
+    // 즐겨찾기 여부를 아직 모르거나 이미 즐겨찾기한 영화는 체크박스를 숨기고 평점만 저장한다.
+    final canAddFavorite = favorite.hasLoadedStatus && !favorite.isFavorite;
     var savedScore = 0;
+    String? dismissMessage;
 
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false, // 저장 중 바깥 탭으로 닫히는 것도 막는다.
       builder: (_) => RatingDialog(
-        onSubmit: (score, comment) async {
-          await viewModel.createRating(score: score, comment: comment);
+        showAddToFavorite: canAddFavorite,
+        onSubmit: (score, comment, addToFavorites) async {
+          if (canAddFavorite) {
+            await viewModel.saveRecord(
+              score: score,
+              comment: comment,
+              addToFavorites: addToFavorites,
+            );
+          } else {
+            await viewModel.createRating(score: score, comment: comment);
+          }
           if (viewModel.submitStatus != SubmitStatus.success) {
+            final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
+            if (viewModel.dismissOnError) dismissMessage = message;
             throw RatingWriteException(
-              viewModel.submitMessage ?? '저장에 실패했습니다.',
+              message,
+              dismissDialog: viewModel.dismissOnError,
             );
           }
           savedScore = score;
         },
       ),
     );
-    if (!mounted || saved != true) return;
+    if (!mounted) return;
+    if (dismissMessage != null) {
+      _showMessage(dismissMessage!);
+      favorite.load(); // 서버 값으로 북마크를 다시 맞춘다.
+      return;
+    }
+    if (saved != true) return;
 
     setState(() => _myRating = savedScore);
-    _showMessage('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.');
+    favorite.load(); // 한 번에 저장한 즐겨찾기를 서버 값으로 반영한다.
+    _showMessage('평점을 저장했습니다.');
   }
 
   void _goBack() {
@@ -260,6 +290,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildActionBar() {
+    final favorite = context.watch<FavoriteDetailViewModel>();
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.warmWhite,
@@ -276,9 +307,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _toggleFavorite,
+                  onPressed: favorite.hasLoadedStatus && !favorite.isSaving
+                      ? _toggleFavorite
+                      : null,
                   icon: Icon(
-                    _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                    favorite.isFavorite ? Icons.bookmark : Icons.bookmark_border,
                     size: 20,
                   ),
                   label: const Text('즐겨찾기'),

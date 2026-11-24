@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/network/movie_log_client.dart';
+import '../core/session/auth_session_bridge.dart';
+import '../core/session/session_guard.dart';
 import '../core/network/tmdb_client.dart';
 import '../core/storage/saved_email_storage.dart';
 import '../core/storage/token_storage.dart';
 import '../data/services/auth_api_service.dart';
+import '../data/services/favorite_api_service.dart';
 import '../data/services/member_api_service.dart';
+import '../data/services/movie_record_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/sign_up_service.dart';
 import '../data/services/tmdb_movie_service.dart';
@@ -26,6 +30,8 @@ class MovieLogApp extends StatelessWidget {
     this.ratingApiService,
     this.authApiService,
     this.memberApiService,
+    this.favoriteApiService,
+    this.movieRecordApiService,
     this.tokenStorage,
     this.savedEmailStorage,
   });
@@ -35,6 +41,8 @@ class MovieLogApp extends StatelessWidget {
   final RatingApiService? ratingApiService;
   final AuthApiService? authApiService;
   final MemberApiService? memberApiService;
+  final FavoriteApiService? favoriteApiService;
+  final MovieRecordApiService? movieRecordApiService;
   final TokenStorage? tokenStorage;
   final SavedEmailStorage? savedEmailStorage;
 
@@ -71,6 +79,13 @@ class MovieLogApp extends StatelessWidget {
           create: (_) =>
               ratingApiService ?? RatingApiService(publicClient, authClient),
         ),
+        Provider<FavoriteApiService>(
+          create: (_) => favoriteApiService ?? FavoriteApiService(authClient),
+        ),
+        Provider<MovieRecordApiService>(
+          create: (_) =>
+              movieRecordApiService ?? MovieRecordApiService(authClient),
+        ),
         // Service를 주입받는 ViewModel
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
@@ -83,6 +98,24 @@ class MovieLogApp extends StatelessWidget {
         ChangeNotifierProvider<SessionRatingStore>(
           create: (context) =>
               SessionRatingStore(context.read<AuthViewModel>()),
+        ),
+        // 인증 상태 변화를 SessionGuard에 전달한다. 바로 만들어져야 하므로 lazy: false.
+        Provider<AuthSessionBridge>(
+          lazy: false,
+          create: (context) {
+            final auth = context.read<AuthViewModel>();
+            return AuthSessionBridge(
+              authSignals: auth,
+              sessionVersion: () => auth.sessionVersion,
+              verifiedEmail: () => auth.status == AuthStatus.signedIn
+                  ? auth.member?.email
+                  : null,
+            );
+          },
+          dispose: (_, bridge) => bridge.dispose(),
+        ),
+        ProxyProvider<AuthSessionBridge, SessionGuard>(
+          update: (_, bridge, _) => bridge.guard,
         ),
       ],
       child: const _MovieLogRouterApp(),

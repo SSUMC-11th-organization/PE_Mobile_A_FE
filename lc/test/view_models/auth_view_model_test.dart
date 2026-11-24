@@ -74,7 +74,7 @@ void main() {
     test('네트워크 실패면 토큰을 지우지 않고 retryRequired이며, 다시 시도하면 복구된다', () async {
       storage.token = 'stored';
       memberApi
-        ..fetchError = dioFailure('/v7/members/me')
+        ..fetchError = dioFailure('/v8/members/me')
         ..fetchFailTimes = 1;
 
       await viewModel.restoreSession();
@@ -91,7 +91,7 @@ void main() {
 
     test('서버 5xx도 로그아웃이 아니라 재시도다', () async {
       storage.token = 'stored';
-      memberApi.fetchError = dioFailure('/v7/members/me', statusCode: 500);
+      memberApi.fetchError = dioFailure('/v8/members/me', statusCode: 500);
 
       await viewModel.restoreSession();
 
@@ -150,7 +150,7 @@ void main() {
     });
 
     test('네트워크 실패는 입력 오류와 다른 문구다', () async {
-      authApi.loginError = dioFailure('/v7/auth/login');
+      authApi.loginError = dioFailure('/v8/auth/login');
 
       await viewModel.login('lc@example.com', 'Password1!');
 
@@ -186,7 +186,7 @@ void main() {
     test('네트워크 실패면 로그아웃하지 않고 error로 남겨 재시도할 수 있다', () async {
       await viewModel.login('lc@example.com', 'Password1!');
       memberApi
-        ..fetchError = dioFailure('/v7/members/me')
+        ..fetchError = dioFailure('/v8/members/me')
         ..fetchFailTimes = 1;
 
       await viewModel.loadMember();
