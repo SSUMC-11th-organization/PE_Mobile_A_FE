@@ -1,11 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/view_models/my_ratings_view_model.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 
 import 'helpers/movielog_fakes.dart';
-import 'helpers/tmdb_fakes.dart';
 
 void main() {
   group('SignUpViewModel', () {
@@ -40,7 +38,7 @@ void main() {
     });
 
     test('통신 실패는 중복과 다른 상태·문구로 구분한다', () async {
-      service.error = networkError('/v6/members/nickname/x');
+      service.error = networkError('/v7/members/nickname/x');
       viewModel.onNicknameChanged('영화광');
       await viewModel.checkNickname('영화광');
 
@@ -105,100 +103,6 @@ void main() {
       expect(viewModel.nicknameCheckStatus, CheckStatus.duplicated);
       expect(viewModel.emailCheckStatus, CheckStatus.available);
       expect(viewModel.emailErrorText, isNull);
-    });
-  });
-
-  group('MyRatingsViewModel', () {
-    MyRatingsViewModel create(
-      FakeRatingApiService ratings,
-      FakeTmdbMovieService movies,
-    ) => MyRatingsViewModel(ratings, movies, 1);
-
-    test('memberId 1의 평점을 TMDB 영화 정보와 묶어 Success로 둔다', () async {
-      final ratings = FakeRatingApiService();
-      final viewModel = create(ratings, FakeTmdbMovieService());
-
-      await viewModel.load();
-
-      expect(ratings.requestedMemberIds.single, 1);
-      expect(viewModel.status, MyRatingsLoadStatus.success);
-      expect(viewModel.ratings.map((entry) => entry.movie?.title), [
-        '영화 1',
-        '영화 2',
-      ]);
-      expect(viewModel.message, isNull);
-    });
-
-    test('빈 배열이면 Error가 아니라 Empty다', () async {
-      final viewModel = create(
-        FakeRatingApiService(ratings: []),
-        FakeTmdbMovieService(),
-      );
-
-      await viewModel.load();
-
-      expect(viewModel.status, MyRatingsLoadStatus.empty);
-    });
-
-    test('400과 404를 서로 다른 문구로 보여준다', () async {
-      final ratings = FakeRatingApiService()
-        ..error = httpError('/v6/members/1/ratings', 404);
-      final viewModel = create(ratings, FakeTmdbMovieService());
-
-      await viewModel.load();
-      expect(viewModel.status, MyRatingsLoadStatus.error);
-      expect(viewModel.message, '존재하지 않는 회원입니다.');
-
-      ratings.error = httpError('/v6/members/abc/ratings', 400);
-      await viewModel.load();
-      expect(viewModel.message, 'memberId 형식을 다시 확인해 주세요.');
-    });
-
-    test('TMDB에 없는 영화도 평점은 남기고 안내 문구를 둔다', () async {
-      final viewModel = create(
-        FakeRatingApiService(
-          ratings: [
-            ratingFixture(1, movieId: 1),
-            ratingFixture(2, movieId: 999),
-          ],
-        ),
-        FakeTmdbMovieService(),
-      );
-
-      await viewModel.load();
-
-      expect(viewModel.status, MyRatingsLoadStatus.success);
-      expect(viewModel.ratings, hasLength(2));
-      expect(viewModel.ratings.last.movie, isNull);
-      expect(viewModel.ratings.last.rating.movieId, 999);
-      expect(viewModel.message, contains('일부 영화 정보를 가져오지 못해'));
-    });
-
-    test('같은 movieId는 한 번만 조회하고, 네트워크 실패는 캐시하지 않는다', () async {
-      final movies = FakeTmdbMovieService();
-      final viewModel = create(
-        FakeRatingApiService(
-          ratings: [ratingFixture(1, movieId: 1), ratingFixture(2, movieId: 1)],
-        ),
-        movies,
-      );
-
-      await viewModel.load();
-      expect(movies.detailRequests, [1]);
-
-      final failing = FakeTmdbMovieService()
-        ..detailError = networkError('/movie/2');
-      final retryViewModel = create(
-        FakeRatingApiService(ratings: [ratingFixture(1, movieId: 2)]),
-        failing,
-      );
-      await retryViewModel.load();
-      expect(retryViewModel.ratings.single.movie, isNull);
-
-      failing.detailError = null;
-      await retryViewModel.load();
-      expect(retryViewModel.ratings.single.movie?.title, '영화 2');
-      expect(failing.detailRequests, [2, 2]);
     });
   });
 }

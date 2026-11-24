@@ -2,16 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/main.dart';
-import 'package:movielog/router/app_router.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/movielog_button.dart';
 import 'package:provider/provider.dart';
 
 import 'helpers/movielog_fakes.dart';
-import 'helpers/tmdb_fakes.dart';
 
 void main() {
   void useTallView(WidgetTester tester) {
@@ -104,7 +100,7 @@ void main() {
 
     testWidgets('통신 실패는 중복과 다른 문구로 보여준다', (tester) async {
       await pumpSignUp(tester);
-      service.error = networkError('/v6/members/nickname/x');
+      service.error = networkError('/v7/members/nickname/x');
       await tester.enterText(nicknameField(), '영화광');
       await tester.pump();
       await tester.tap(nicknameCheckButton());
@@ -127,74 +123,6 @@ void main() {
 
       expect(checkWidth, lessThan(formWidth / 2));
       expect(submitWidth, formWidth);
-    });
-  });
-
-  group('내가 등록한 평점', () {
-    Future<FakeRatingApiService> pumpAppAt(
-      WidgetTester tester,
-      String location, {
-      FakeRatingApiService? ratings,
-    }) async {
-      useTallView(tester);
-      final ratingService = ratings ?? FakeRatingApiService();
-      AppRouter.router.go(location);
-      await tester.pumpWidget(
-        MovieLogApp(
-          movieService: FakeTmdbMovieService(),
-          signUpService: FakeSignUpService(),
-          ratingApiService: ratingService,
-          session: LearningMemberSession(1),
-        ),
-      );
-      await tester.pumpAndSettle();
-      return ratingService;
-    }
-
-    testWidgets('마이페이지에서 진입하면 하단 탭 없이 가입한 memberId의 평점을 보여준다', (tester) async {
-      final ratings = await pumpAppAt(tester, '/my');
-
-      await tester.tap(find.text('내가 등록한 평점'));
-      await tester.pumpAndSettle();
-
-      expect(AppRouter.router.state.uri.path, '/my/ratings');
-      expect(find.byType(NavigationBar), findsNothing);
-      expect(ratings.requestedMemberIds.single, 1);
-      expect(find.text('영화 1'), findsOneWidget);
-      expect(find.text('최고의 영화!'), findsOneWidget);
-      expect(find.text('2026.09.06'), findsNWidgets(2));
-
-      await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle();
-
-      expect(AppRouter.router.state.uri.path, '/my');
-      expect(find.byType(NavigationBar), findsOneWidget);
-    });
-
-    testWidgets('평점이 없으면 Empty 안내를 보여준다', (tester) async {
-      await pumpAppAt(
-        tester,
-        '/my/ratings',
-        ratings: FakeRatingApiService(ratings: []),
-      );
-
-      expect(find.text('아직 등록한 평점이 없어요.'), findsOneWidget);
-    });
-
-    testWidgets('실패하면 문구와 고정 너비 다시 시도 버튼을 보여주고, 재시도는 성공한다', (tester) async {
-      final ratings = FakeRatingApiService()
-        ..error = httpError('/v6/members/1/ratings', 404);
-      await pumpAppAt(tester, '/my/ratings', ratings: ratings);
-
-      expect(find.text('존재하지 않는 회원입니다.'), findsOneWidget);
-      final retry = find.widgetWithText(MovieLogButton, '다시 시도');
-      expect(tester.getSize(retry).width, 120);
-
-      ratings.error = null;
-      await tester.tap(retry);
-      await tester.pumpAndSettle();
-
-      expect(find.text('최고의 영화!'), findsOneWidget);
     });
   });
 }

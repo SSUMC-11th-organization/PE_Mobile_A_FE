@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
 import '../utils/sign_up_validators.dart';
-import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
@@ -56,7 +55,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     FocusScope.of(context).unfocus();
     final viewModel = context.read<SignUpViewModel>();
-    final session = context.read<LearningMemberSession>();
     final messenger = ScaffoldMessenger.of(context);
 
     // 비밀번호는 요청 본문에만 담고 로그·저장소에 남기지 않습니다.
@@ -69,14 +67,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
     if (!mounted) return;
 
-    final memberId = viewModel.createdMemberId;
-    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
-      session.setMemberId(memberId);
+    if (viewModel.submitStatus == SubmitStatus.success) {
+      // 가입 응답에는 토큰이 없어서 바로 로그인 상태가 되지 않습니다. 로그인 화면에서 다시 로그인합니다.
       messenger.showSnackBar(
-        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId $memberId)')),
+        const SnackBar(content: Text('회원가입이 완료되었습니다. 로그인해 주세요.')),
       );
-      // 영화 목록에서 뒤로 가기로 회원가입이 다시 나오지 않도록 push가 아닌 go를 씁니다.
-      context.go('/movies');
+      context.go('/login');
       return;
     }
     final message = viewModel.snackbarMessage;
