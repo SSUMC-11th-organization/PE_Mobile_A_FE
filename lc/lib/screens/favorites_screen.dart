@@ -7,7 +7,6 @@ import '../models/movie_detail_args.dart';
 import '../theme/app_colors.dart';
 import '../view_models/favorites_view_model.dart';
 import '../view_models/load_phase.dart';
-import '../widgets/movie_list_empty.dart';
 import '../widgets/movie_list_error.dart';
 import '../widgets/movie_list_loading.dart';
 import '../widgets/tmdb_poster_image.dart';
@@ -23,7 +22,7 @@ class FavoritesScreen extends StatelessWidget {
       body: switch (vm.phase) {
         LoadPhase.idle || LoadPhase.loading => const MovieListLoading(),
         LoadPhase.error => MovieListError(message: vm.message, onRetry: vm.load),
-        LoadPhase.empty => const MovieListEmpty(),
+        LoadPhase.empty => const Center(child: Text('아직 즐겨찾기한 영화가 없어요.')),
         LoadPhase.ready => ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: vm.items.length,
