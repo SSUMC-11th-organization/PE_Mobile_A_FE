@@ -15,7 +15,7 @@ export 'submit_status.dart' show RatingWriteException;
 enum MyRatingsLoadStatus { idle, loading, success, empty }
 
 /// "내가 등록한 평점" 화면의 상태. 이번 세션에서 등록한 평점([SessionRatingStore])을
-/// TMDB 영화 정보와 묶어 보여주고, v7 토큰 기반 API로 수정·삭제한다.
+/// TMDB 영화 정보와 묶어 보여주고, v8 토큰 기반 API로 수정·삭제한다.
 class MyRatingsViewModel extends ChangeNotifier {
   MyRatingsViewModel(
     this._service,

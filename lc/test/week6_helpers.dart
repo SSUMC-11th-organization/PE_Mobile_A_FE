@@ -10,6 +10,11 @@ import 'package:movielog/core/storage/saved_email_storage.dart';
 import 'package:movielog/core/storage/token_storage.dart';
 import 'package:movielog/data/models/common_response.dart';
 import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/data/models/favorite_check_dto.dart';
+import 'package:movielog/data/models/favorite_response_dto.dart';
+import 'package:movielog/data/models/movie_record_models.dart';
+import 'package:movielog/data/services/movie_record_api_service.dart';
+import 'package:movielog/data/services/favorite_api_service.dart';
 import 'package:movielog/data/models/login_models.dart';
 import 'package:movielog/data/models/member_info.dart';
 import 'package:movielog/data/models/rating_dto.dart';
@@ -43,7 +48,7 @@ DioException dioFailure(String path, {int? statusCode, Object? body}) {
 /// 공통 오류 응답 { isSuccess: false, code, message } 형태의 실패.
 DioException commonError(int statusCode, String code, String message) {
   return dioFailure(
-    '/v7/x',
+    '/v8/x',
     statusCode: statusCode,
     body: {'isSuccess': false, 'code': code, 'message': message},
   );
@@ -211,7 +216,7 @@ class FakeSignUpService extends SignUpService {
   Future<bool> checkNickname(String nickname) async {
     nicknameCalls.add(nickname.trim());
     await gate?.future;
-    if (fail) throw dioFailure('/v7/members/nickname/$nickname');
+    if (fail) throw dioFailure('/v8/members/nickname/$nickname');
     return !takenNicknames.contains(nickname.trim());
   }
 
@@ -219,7 +224,7 @@ class FakeSignUpService extends SignUpService {
   Future<bool> checkEmail(String email) async {
     emailCalls.add(email.trim());
     await gate?.future;
-    if (fail) throw dioFailure('/v7/members/email/$email');
+    if (fail) throw dioFailure('/v8/members/email/$email');
     return !takenEmails.contains(email.trim());
   }
 
@@ -254,7 +259,7 @@ class RecordedUpdate {
   final String? comment;
 }
 
-/// v7 토큰 기반 평점 API(등록·수정·삭제)를 흉내 낸다. 어떤 메서드에도 memberId 인자가 없다.
+/// v8 토큰 기반 평점 API(등록·수정·삭제)를 흉내 낸다. 어떤 메서드에도 memberId 인자가 없다.
 class FakeRatingApiService extends RatingApiService {
   FakeRatingApiService() : super(Dio(), Dio());
 
@@ -312,8 +317,108 @@ class FakeRatingApiService extends RatingApiService {
     final error = writeError;
     if (error != null) throw error;
     if (failDeleteIds.contains(ratingId)) {
-      throw dioFailure('/v7/ratings/$ratingId', statusCode: 500);
+      throw dioFailure('/v8/ratings/$ratingId', statusCode: 500);
     }
+  }
+}
+
+/// 즐겨찾기 서버를 흉내 낸다. 계정(토큰)별 목록은 [byAccount]에 둔다.
+class FakeFavoriteApiService extends FavoriteApiService {
+  FakeFavoriteApiService() : super(Dio());
+
+  /// 계정 이메일 → 즐겨찾기 movieId 집합. 현재 계정은 [account]로 정한다.
+  final Map<String, Set<int>> byAccount = {};
+  String account = 'lc@example.com';
+  Set<int> get mine => byAccount.putIfAbsent(account, () => {});
+
+  final List<String> calls = [];
+  Object? addError;
+  Object? deleteError;
+  Completer<void>? gate;
+  int _nextId = 1;
+
+  @override
+  Future<FavoriteResponseDto> addFavorite({required int movieId}) async {
+    calls.add('POST $movieId');
+    await gate?.future;
+    final error = addError;
+    if (error != null) throw error;
+    mine.add(movieId);
+    return FavoriteResponseDto(
+      favoriteId: _nextId++,
+      movieId: movieId,
+      createdAt: DateTime.utc(2026, 11, 20),
+    );
+  }
+
+  @override
+  Future<List<FavoriteResponseDto>> fetchMyFavorites() async {
+    calls.add('GET list');
+    await gate?.future;
+    return [
+      for (final id in mine)
+        FavoriteResponseDto(
+          favoriteId: id,
+          movieId: id,
+          createdAt: DateTime.utc(2026, 11, 20),
+        ),
+    ];
+  }
+
+  @override
+  Future<FavoriteCheckDto> checkFavorite({required int movieId}) async {
+    calls.add('GET $movieId');
+    await gate?.future;
+    return FavoriteCheckDto(
+      isFavorite: mine.contains(movieId),
+      movieId: movieId,
+    );
+  }
+
+  @override
+  Future<void> deleteFavorite({required int movieId}) async {
+    calls.add('DELETE $movieId');
+    await gate?.future;
+    final error = deleteError;
+    if (error != null) throw error;
+    mine.remove(movieId);
+  }
+}
+
+/// POST /v8/movie-records를 흉내 낸다. 평점 저장은 [ratings] 가짜 서버에 맡겨,
+/// 평점 쓰기 오류·지연 설정(writeError, writeGate)이 그대로 적용된다.
+/// 성공하고 addToFavorites이면 [favorites]에도 반영한다.
+class FakeMovieRecordApiService extends MovieRecordApiService {
+  FakeMovieRecordApiService(this.ratings, this.favorites) : super(Dio());
+
+  final FakeRatingApiService ratings;
+  final FakeFavoriteApiService favorites;
+  Object? error;
+  final List<MovieRecordRequest> calls = [];
+
+  @override
+  Future<MovieRecordResult> createRecord(MovieRecordRequest request) async {
+    calls.add(request);
+    final e = error;
+    if (e != null) throw e;
+    final rating = await ratings.createRating(
+      CreateRatingRequest(
+        movieId: request.movieId,
+        score: request.score,
+        comment: request.comment,
+      ),
+    );
+    if (request.addToFavorites) favorites.mine.add(request.movieId);
+    return MovieRecordResult(
+      rating: rating,
+      favorite: request.addToFavorites
+          ? FavoriteResponseDto(
+              favoriteId: 1,
+              movieId: request.movieId,
+              createdAt: DateTime.utc(2026, 11, 20),
+            )
+          : null,
+    );
   }
 }
 
@@ -358,6 +463,8 @@ class AppHarness {
   final members = FakeMemberApiService();
   final ratings = FakeRatingApiService();
   final signUp = FakeSignUpService();
+  final favorites = FakeFavoriteApiService();
+  late final records = FakeMovieRecordApiService(ratings, favorites);
 
   /// [signedIn]이면 저장된 토큰이 있는 상태로 시작해 세션 복원을 거쳐 홈으로 들어간다.
   /// [settle]이 false면 한 프레임만 그린다. (인디케이터가 도는 화면은 settle되지 않는다.)
@@ -379,6 +486,8 @@ class AppHarness {
         ratingApiService: ratings,
         authApiService: auth,
         memberApiService: members,
+        favoriteApiService: favorites,
+        movieRecordApiService: records,
         tokenStorage: tokens,
         savedEmailStorage: savedEmail,
       ),

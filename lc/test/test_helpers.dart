@@ -100,7 +100,14 @@ class FakeTmdbMovieService extends TmdbMovieService {
   /// 이 Completer가 완료될 때까지 Discover 응답을 붙잡아 Loading 상태를 만든다.
   Completer<void>? discoverGate;
 
+  /// 이 page 번호의 Discover 요청은 한 번 실패시킨다. (더 보기 실패→재시도 테스트)
+  final Set<int> failDiscoverPages = {};
+
   final List<DiscoverCall> discoverCalls = [];
+  final List<({int page, String query})> searchCalls = [];
+  Completer<void>? searchGate;
+  List<TmdbMovieDto> Function(String query) searchCatalog = (q) =>
+      q == '없는영화' ? <TmdbMovieDto>[] : movieDtos(45, startId: 5000);
   int popularCalls = 0;
   int genreCalls = 0;
 
@@ -124,8 +131,21 @@ class FakeTmdbMovieService extends TmdbMovieService {
     discoverCalls.add(DiscoverCall(page, genreId));
     final gate = discoverGate;
     if (gate != null) await gate.future;
-    if (failDiscover) throw _failure('/discover/movie');
+    if (failDiscover || failDiscoverPages.remove(page)) {
+      throw _failure('/discover/movie');
+    }
     return _page(catalog(genreId), page);
+  }
+
+  @override
+  Future<TmdbMoviePageDto> searchMovies({
+    required int page,
+    required String query,
+  }) async {
+    searchCalls.add((page: page, query: query));
+    final gate = searchGate;
+    if (gate != null) await gate.future;
+    return _page(searchCatalog(query), page);
   }
 
   @override

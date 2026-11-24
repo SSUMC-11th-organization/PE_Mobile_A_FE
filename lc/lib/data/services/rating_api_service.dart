@@ -5,7 +5,7 @@ import '../models/common_response.dart';
 import '../models/rating_dto.dart';
 import '../models/rating_request.dart';
 
-/// v7의 등록·수정 성공 응답은 공통 응답의 result에 Rating 객체가 들어 있다.
+/// v8의 등록·수정 성공 응답은 공통 응답의 result에 Rating 객체가 들어 있다.
 RatingDto parseRatingResult(Object? data) {
   if (data is! Map<String, dynamic>) {
     throw StateError('평점 응답 형식이 올바르지 않습니다.');
@@ -28,21 +28,21 @@ List<RatingDto> parseRatingList(Object? data) {
 }
 
 /// 공개 조회는 공개 Client로, 등록·수정·삭제는 보호 Client로 보낸다.
-/// v7 보호 요청은 path·body 어디에도 memberId가 없고, 서버가 토큰으로 회원을 식별한다.
+/// v8 보호 요청은 path·body 어디에도 memberId가 없고, 서버가 토큰으로 회원을 식별한다.
 class RatingApiService {
   RatingApiService(this._publicDio, this._authDio);
 
   final Dio _publicDio;
   final Dio _authDio;
 
-  /// 공개 API라 토큰 없이 조회한다. (v7에는 토큰 기반 "내 평점 목록" API가 없다.)
+  /// 공개 API라 토큰 없이 조회한다. (v8에는 토큰 기반 "내 평점 목록" API가 없다.)
   Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    final response = await _publicDio.get('/v7/members/$memberId/ratings');
+    final response = await _publicDio.get('/v8/members/$memberId/ratings');
     return parseRatingList(response.data);
   }
 
   Future<RatingDto> createRating(CreateRatingRequest request) async {
-    final response = await _authDio.post('/v7/ratings', data: request.toJson());
+    final response = await _authDio.post('/v8/ratings', data: request.toJson());
     return parseRatingResult(response.data);
   }
 
@@ -53,15 +53,15 @@ class RatingApiService {
     String? comment,
   }) async {
     final response = await _authDio.patch(
-      '/v7/ratings/$ratingId',
+      '/v8/ratings/$ratingId',
       data: {'score': score, 'comment': comment},
     );
     return parseRatingResult(response.data);
   }
 
-  /// v7 삭제 성공은 204가 아니라 result가 null인 200이다.
+  /// v8 삭제 성공은 204가 아니라 result가 null인 200이다.
   Future<void> deleteRating(int ratingId) async {
-    final response = await _authDio.delete('/v7/ratings/$ratingId');
+    final response = await _authDio.delete('/v8/ratings/$ratingId');
     if (response.statusCode != 200) {
       throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
     }

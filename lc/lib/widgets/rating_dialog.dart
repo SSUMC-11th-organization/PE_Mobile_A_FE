@@ -19,12 +19,16 @@ class RatingDialog extends StatefulWidget {
     this.initialScore = 0,
     this.initialComment,
     this.title = '영화는 어떠셨나요?',
+    this.showAddToFavorite = false,
   });
 
   final int initialScore;
   final String? initialComment;
   final String title;
-  final Future<void> Function(int score, String? comment) onSubmit;
+  /// 평점 수정처럼 즐겨찾기와 상관없는 곳에서는 false로 두고 체크박스를 숨긴다.
+  final bool showAddToFavorite;
+  final Future<void> Function(int score, String? comment, bool addToFavorites)
+  onSubmit;
 
   static const maxCommentLength = 500;
 
@@ -39,6 +43,7 @@ class _RatingDialogState extends State<RatingDialog> {
     text: widget.initialComment ?? '',
   );
   bool _isSubmitting = false;
+  bool _addToFavorites = false;
   String? _errorText;
 
   @override
@@ -61,12 +66,20 @@ class _RatingDialogState extends State<RatingDialog> {
     });
 
     try {
-      await widget.onSubmit(_score, trimmed.isEmpty ? null : trimmed);
+      await widget.onSubmit(
+        _score,
+        trimmed.isEmpty ? null : trimmed,
+        widget.showAddToFavorite && _addToFavorites,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
       // 실패해도 버튼을 로딩에 남기지 않고, 입력은 그대로 둔 채 다시 시도할 수 있게 한다.
+      if (error is RatingWriteException && error.dismissDialog) {
+        Navigator.pop(context, false);
+        return;
+      }
       setState(() {
         _isSubmitting = false;
         _errorText = error is RatingWriteException
@@ -126,6 +139,17 @@ class _RatingDialogState extends State<RatingDialog> {
                   ),
                 ),
               ),
+              if (widget.showAddToFavorite)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('즐겨찾기에도 추가'),
+                  value: _addToFavorites,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) =>
+                            setState(() => _addToFavorites = value ?? false),
+                ),
               if (_errorText != null) ...[
                 const SizedBox(height: 8),
                 Align(

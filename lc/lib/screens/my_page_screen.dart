@@ -63,6 +63,8 @@ class _MyPageContent extends StatelessWidget {
           const ProfileStats(),
           const SizedBox(height: 16),
           const _MyRatingsEntry(),
+          const SizedBox(height: 12),
+          const _MyFavoritesEntry(),
           const SizedBox(height: 16),
           const FavoriteGenres(),
           const SizedBox(height: 48),
@@ -116,6 +118,24 @@ class _MyRatingsEntry extends StatelessWidget {
       title: const Text('내가 등록한 평점'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/my/ratings'),
+    );
+  }
+}
+
+/// 마이페이지 위에 자식 화면(/my/favorites)을 여는 진입 행.
+class _MyFavoritesEntry extends StatelessWidget {
+  const _MyFavoritesEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      tileColor: AppColors.violetback,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      leading: const Icon(Icons.bookmark_rounded, color: AppColors.violet),
+      title: const Text('내 즐겨찾기'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/my/favorites'),
     );
   }
 }
@@ -207,7 +227,7 @@ class ProfileHeader extends StatelessWidget {
   }
 }
 
-/// 통계 수치는 디자인 예시다. (v7 GET me 응답에는 이메일·닉네임·가입일만 있다.)
+/// 통계 수치는 디자인 예시다. (v8 GET me 응답에는 이메일·닉네임·가입일만 있다.)
 class ProfileStats extends StatelessWidget {
   const ProfileStats({super.key});
 
